@@ -13,11 +13,11 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
     
     // Add CORS middleware
     r.Use(cors.New(cors.Config{
-        AllowOrigins:     []string{"http://localhost:3000", "http://frontend:80"},
+        AllowOrigins:     []string{"*"}, // Allow all origins for now
         AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
         AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
         ExposeHeaders:    []string{"Content-Length"},
-        AllowCredentials: true,
+        AllowCredentials: false, // Must be false when AllowOrigins is "*"
     }))
 
     // Public auth routes (login - no JWT required)

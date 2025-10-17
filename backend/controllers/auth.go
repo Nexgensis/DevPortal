@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"log"
 	"net/http"
 	"os"
 	"time"
@@ -37,17 +38,22 @@ func Login(db *gorm.DB) gin.HandlerFunc {
 		var user models.User
 		if result := db.Where("username = ?", input.Username).First(&user); result.Error != nil {
 			if result.Error == gorm.ErrRecordNotFound {
+				log.Printf("User not found: %s", input.Username)
 				respondWithError(c, http.StatusUnauthorized, "Invalid credentials")
 			} else {
+				log.Printf("Database error: %v", result.Error)
 				respondWithError(c, http.StatusInternalServerError, "Database error")
 			}
 			return
 		}
 
+		log.Printf("Found user: %s, checking password", user.Username)
 		if !utils.CheckPasswordHash(input.Password, user.PasswordHash) {
+			log.Printf("Password check failed for user: %s", user.Username)
 			respondWithError(c, http.StatusUnauthorized, "Invalid credentials")
 			return
 		}
+		log.Printf("Login successful for user: %s", user.Username)
 
 		expiresAt := time.Now().Add(time.Hour * 24).Unix()
 		token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
