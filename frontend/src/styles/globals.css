@@ -2,43 +2,43 @@
 
 :root {
   --font-size: 16px;
-  --background: #ffffff;
-  --foreground: oklch(0.145 0 0);
+  --background: #f8f8f5;
+  --foreground: #2d2d2d;
   --card: #ffffff;
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: #030213;
-  --primary-foreground: oklch(1 0 0);
-  --secondary: oklch(0.95 0.0058 264.53);
-  --secondary-foreground: #030213;
-  --muted: #ececf0;
-  --muted-foreground: #717182;
-  --accent: #e9ebef;
-  --accent-foreground: #030213;
-  --destructive: #d4183d;
+  --card-foreground: #2d2d2d;
+  --popover: #ffffff;
+  --popover-foreground: #2d2d2d;
+  --primary: #2d2d2d;
+  --primary-foreground: #ffffff;
+  --secondary: #f5f5f0;
+  --secondary-foreground: #2d2d2d;
+  --muted: #f0f0eb;
+  --muted-foreground: #8a8a8a;
+  --accent: #f5c344;
+  --accent-foreground: #2d2d2d;
+  --destructive: #ef4444;
   --destructive-foreground: #ffffff;
-  --border: rgba(0, 0, 0, 0.1);
+  --border: rgba(0, 0, 0, 0.08);
   --input: transparent;
-  --input-background: #f3f3f5;
-  --switch-background: #cbced4;
+  --input-background: #fafafa;
+  --switch-background: #e5e5e0;
   --font-weight-medium: 500;
   --font-weight-normal: 400;
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: #030213;
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --ring: #f5c344;
+  --chart-1: #f5c344;
+  --chart-2: #60a5fa;
+  --chart-3: #34d399;
+  --chart-4: #f472b6;
+  --chart-5: #a78bfa;
+  --radius: 1rem;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #2d2d2d;
+  --sidebar-primary: #2d2d2d;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #f5f5f0;
+  --sidebar-accent-foreground: #2d2d2d;
+  --sidebar-border: rgba(0, 0, 0, 0.05);
+  --sidebar-ring: #f5c344;
 }
 
 .dark {
@@ -126,6 +126,8 @@
 
   body {
     @apply bg-background text-foreground;
+    background: linear-gradient(135deg, #f8f8f5 0%, #faf9f0 50%, #fef9e8 100%);
+    min-height: 100vh;
   }
 }
 
@@ -186,4 +188,36 @@
 
 html {
   font-size: var(--font-size);
+}
+
+/* Custom utility classes for modern dashboard */
+@layer utilities {
+  .pill-button {
+    @apply rounded-full;
+  }
+  
+  .card-shadow {
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
+  }
+  
+  .card-shadow-hover {
+    box-shadow: 0 8px 40px rgba(0, 0, 0, 0.12);
+  }
+  
+  .section-spacing {
+    @apply mb-10;
+  }
+  
+  .content-spacing {
+    @apply space-y-6;
+  }
+}
+
+/* Smooth transitions for interactive elements */
+@layer base {
+  button,
+  a,
+  [role="button"] {
+    @apply transition-all duration-200;
+  }
 }

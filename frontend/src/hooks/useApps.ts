@@ -1,97 +1,57 @@
 import { useState, useEffect } from 'react';
 import { App } from '../types/app';
-import { appApi } from '../lib/api';
+
+const STORAGE_KEY = 'devops-dashboard-apps';
 
 export function useApps() {
   const [apps, setApps] = useState<App[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const loadApps = async () => {
-    try {
-      setIsLoading(true);
-      setError(null);
-      const appList = await appApi.list();
-      setApps(appList);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load apps');
-      console.error('Failed to load apps:', err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   useEffect(() => {
-    loadApps();
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      try {
+        const parsedApps = JSON.parse(stored);
+        // Migrate old apps structure if needed
+        const migratedApps = parsedApps.map((app: any) => {
+          // Migrate appUrl to domain if exists
+          const domain = app.domain || app.appUrl || '';
+          const { appUrl, ...appWithoutUrl } = app;
+          
+          return {
+            ...appWithoutUrl,
+            projectId: app.projectId || '',
+            serverId: app.serverId || '',
+            domain,
+            autoStopTimeout: app.autoStopTimeout ?? 60,
+          };
+        });
+        setApps(migratedApps);
+      } catch (error) {
+        console.error('Failed to parse apps from localStorage:', error);
+      }
+    }
   }, []);
 
-  const addApp = async (app: Omit<App, 'id' | 'status' | 'startedAt'>) => {
-    try {
-      const newApp = await appApi.create(app);
-      setApps(prev => [...prev, newApp]);
-      return newApp;
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to add app';
-      setError(errorMessage);
-      throw new Error(errorMessage);
-    }
+  const saveApps = (newApps: App[]) => {
+    setApps(newApps);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(newApps));
   };
 
-  const updateApp = async (id: string, updates: Partial<App>) => {
-    try {
-      const updatedApp = await appApi.update(id, updates);
-      setApps(prev => prev.map(app => app.id === id ? updatedApp : app));
-      return updatedApp;
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to update app';
-      setError(errorMessage);
-      throw new Error(errorMessage);
-    }
+  const addApp = (app: Omit<App, 'id' | 'status'>) => {
+    const newApp: App = {
+      ...app,
+      id: Date.now().toString(),
+      status: 'stopped',
+    };
+    saveApps([...apps, newApp]);
   };
 
-  const removeApp = async (id: string) => {
-    try {
-      await appApi.delete(id);
-      setApps(prev => prev.filter(app => app.id !== id));
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to remove app';
-      setError(errorMessage);
-      throw new Error(errorMessage);
-    }
+  const updateApp = (id: string, updates: Partial<App>) => {
+    saveApps(apps.map(app => app.id === id ? { ...app, ...updates } : app));
   };
 
-  const startApp = async (id: string, timeoutMinutes: number) => {
-    try {
-      const result = await appApi.start(id, timeoutMinutes);
-      // Update app status locally
-      setApps(prev => prev.map(app => 
-        app.id === id 
-          ? { ...app, status: 'running', startedAt: Date.now() }
-          : app
-      ));
-      return result;
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to start app';
-      setError(errorMessage);
-      throw new Error(errorMessage);
-    }
-  };
-
-  const stopApp = async (id: string) => {
-    try {
-      const result = await appApi.stop(id);
-      // Update app status locally
-      setApps(prev => prev.map(app => 
-        app.id === id 
-          ? { ...app, status: 'stopped', startedAt: undefined }
-          : app
-      ));
-      return result;
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to stop app';
-      setError(errorMessage);
-      throw new Error(errorMessage);
-    }
+  const removeApp = (id: string) => {
+    saveApps(apps.filter(app => app.id !== id));
   };
 
   const getAppsByProject = (projectId: string) => {
@@ -104,15 +64,10 @@ export function useApps() {
 
   return {
     apps,
-    isLoading,
-    error,
     addApp,
     updateApp,
     removeApp,
-    startApp,
-    stopApp,
     getAppsByProject,
     getAppsByServer,
-    refetch: loadApps,
   };
 }

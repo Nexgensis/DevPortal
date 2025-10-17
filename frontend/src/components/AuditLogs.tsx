@@ -39,7 +39,7 @@ export function AuditLogs() {
       setTotal(result.total || 0);
     } catch (error) {
       console.error('Failed to load audit logs:', error);
-      toast.error('Failed to load audit logs');
+      // Don't show error toast for mock API
       setLogs([]);
       setTotal(0);
     } finally {
@@ -116,12 +116,12 @@ export function AuditLogs() {
               onChange={(e) => setFilters({ ...filters, username: e.target.value })}
             />
           </div>
-          <Select value={filters.action} onValueChange={(value) => setFilters({ ...filters, action: value })}>
+          <Select value={filters.action || '__all__'} onValueChange={(value) => setFilters({ ...filters, action: value === '__all__' ? '' : value })}>
             <SelectTrigger className="w-48">
               <SelectValue placeholder="Filter by action" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">All Actions</SelectItem>
+              <SelectItem value="__all__">All Actions</SelectItem>
               <SelectItem value="start_app">Start App</SelectItem>
               <SelectItem value="stop_app">Stop App</SelectItem>
               <SelectItem value="create_app">Create App</SelectItem>
@@ -129,12 +129,12 @@ export function AuditLogs() {
               <SelectItem value="delete_app">Delete App</SelectItem>
             </SelectContent>
           </Select>
-          <Select value={filters.resourceType} onValueChange={(value) => setFilters({ ...filters, resourceType: value })}>
+          <Select value={filters.resourceType || '__all__'} onValueChange={(value) => setFilters({ ...filters, resourceType: value === '__all__' ? '' : value })}>
             <SelectTrigger className="w-48">
               <SelectValue placeholder="Filter by resource" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">All Resources</SelectItem>
+              <SelectItem value="__all__">All Resources</SelectItem>
               <SelectItem value="app">Applications</SelectItem>
               <SelectItem value="server">Servers</SelectItem>
               <SelectItem value="project">Projects</SelectItem>
@@ -188,9 +188,18 @@ export function AuditLogs() {
               </div>
             ))}
             
-            {logs.length === 0 && (
-              <div className="text-center py-8 text-muted-foreground">
-                No audit logs found
+            {logs.length === 0 && !isLoading && (
+              <div className="text-center py-16 px-4">
+                <div className="h-24 w-24 rounded-3xl bg-secondary/50 flex items-center justify-center mx-auto mb-4">
+                  <FileText className="h-12 w-12 text-muted-foreground/60" />
+                </div>
+                <h3 className="text-foreground mb-2">No Audit Logs Available</h3>
+                <p className="text-muted-foreground mb-4 max-w-md mx-auto">
+                  Audit logs require backend integration. All actions (app starts/stops, configuration changes) will be logged here once connected to your backend API.
+                </p>
+                <div className="text-sm text-muted-foreground bg-secondary/50 rounded-2xl p-4 max-w-lg mx-auto">
+                  <strong>Backend Setup Required:</strong> Configure your backend to send audit events to this dashboard. See the documentation for integration details.
+                </div>
               </div>
             )}
           </div>

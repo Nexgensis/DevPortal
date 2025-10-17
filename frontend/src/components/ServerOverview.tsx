@@ -15,60 +15,79 @@ export function ServerOverview({ servers, onRefresh, isRefreshing }: ServerOverv
   const totalApps = servers.reduce((sum, s) => sum + s.runningAppsCount, 0);
 
   return (
-    <Card className="mb-6">
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <CardTitle className="flex items-center gap-2">
-            <ServerIcon className="h-5 w-5" />
-            Server Overview
-          </CardTitle>
+    <div className="mb-10">
+      {/* Section Header */}
+      <div className="mb-6">
+        <div className="flex items-center gap-3 mb-2">
+          <div className="h-10 w-10 rounded-2xl bg-green-50 flex items-center justify-center">
+            <ServerIcon className="h-5 w-5 text-green-600" />
+          </div>
+          <h2 className="text-foreground">Infrastructure Status</h2>
+        </div>
+        <p className="text-muted-foreground ml-[52px]">
+          Real-time monitoring of your servers and applications
+        </p>
+      </div>
+
+      {/* KPI Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        {/* Online Servers KPI */}
+        <div className="bg-white rounded-[2rem] shadow-[0_4px_24px_rgba(0,0,0,0.06)] p-8 transition-all hover:shadow-[0_6px_32px_rgba(0,0,0,0.08)]">
+          <div className="flex items-start justify-between mb-6">
+            <div>
+              <div className="text-muted-foreground mb-1">Online Servers</div>
+              <div className="flex items-baseline gap-3">
+                <span className="text-5xl text-foreground">{onlineServers}</span>
+                <span className="text-xl text-muted-foreground">/ {servers.length}</span>
+              </div>
+            </div>
+            <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-green-50 to-green-100/50 flex items-center justify-center shadow-sm">
+              <ServerIcon className="h-7 w-7 text-green-600" />
+            </div>
+          </div>
+          <div className="h-2 bg-secondary rounded-full overflow-hidden">
+            <div 
+              className="h-full bg-gradient-to-r from-green-500 to-green-400 rounded-full transition-all duration-500"
+              style={{ width: `${servers.length > 0 ? (onlineServers / servers.length) * 100 : 0}%` }}
+            />
+          </div>
+        </div>
+
+        {/* Total Running Apps KPI */}
+        <div className="bg-white rounded-[2rem] shadow-[0_4px_24px_rgba(0,0,0,0.06)] p-8 transition-all hover:shadow-[0_6px_32px_rgba(0,0,0,0.08)]">
+          <div className="flex items-start justify-between mb-6">
+            <div>
+              <div className="text-muted-foreground mb-1">Active Applications</div>
+              <div className="flex items-baseline gap-3">
+                <span className="text-5xl text-foreground">{totalApps}</span>
+                <span className="text-xl text-muted-foreground">running</span>
+              </div>
+            </div>
+            <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-accent/20 to-accent/10 flex items-center justify-center shadow-sm">
+              <Activity className="h-7 w-7 text-accent-foreground" />
+            </div>
+          </div>
+          <div className="text-sm text-muted-foreground">
+            Across {servers.length} {servers.length === 1 ? 'server' : 'servers'}
+          </div>
+        </div>
+
+        {/* Refresh Action Card */}
+        <div className="bg-gradient-to-br from-white to-secondary/20 rounded-[2rem] shadow-[0_4px_24px_rgba(0,0,0,0.06)] p-8 flex flex-col items-center justify-center gap-4">
+          <div className="text-center">
+            <div className="text-muted-foreground mb-2">System Status</div>
+            <div className="text-sm text-muted-foreground">Last updated just now</div>
+          </div>
           <Button
-            variant="outline"
-            size="sm"
             onClick={onRefresh}
             disabled={isRefreshing}
-            className="transition-all duration-200"
+            className="bg-primary hover:bg-primary/90 text-white rounded-full px-8 h-12 shadow-sm"
           >
-            <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
-            Refresh
+            <RefreshCw className={`h-5 w-5 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+            Refresh Status
           </Button>
         </div>
-      </CardHeader>
-      <CardContent>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Online Servers */}
-          <div className="bg-green-50 dark:bg-green-950/20 rounded-lg p-6">
-            <div className="flex items-center gap-3">
-              <div className="h-12 w-12 rounded-lg bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
-                <ServerIcon className="h-6 w-6 text-green-600 dark:text-green-400" />
-              </div>
-              <div>
-                <div className="text-muted-foreground mb-1">Online Servers</div>
-                <div className="flex items-baseline gap-2">
-                  <span className="text-2xl font-semibold text-green-700 dark:text-green-400">{onlineServers}</span>
-                  <span className="text-muted-foreground">of {servers.length}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Total Running Apps */}
-          <div className="bg-orange-50 dark:bg-orange-950/20 rounded-lg p-6">
-            <div className="flex items-center gap-3">
-              <div className="h-12 w-12 rounded-lg bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center">
-                <Activity className="h-6 w-6 text-orange-600 dark:text-orange-400" />
-              </div>
-              <div>
-                <div className="text-muted-foreground mb-1">Total Running Apps</div>
-                <div className="flex items-baseline gap-2">
-                  <span className="text-2xl font-semibold text-orange-700 dark:text-orange-400">{totalApps}</span>
-                  <span className="text-muted-foreground">active</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }

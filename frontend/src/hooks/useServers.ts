@@ -1,111 +1,59 @@
 import { useState, useEffect } from 'react';
 import { Server } from '../types/app';
-import { serverApi } from '../lib/api';
+import { encrypt } from '../lib/encryption';
+
+const STORAGE_KEY = 'devops-dashboard-servers';
 
 export function useServers() {
   const [servers, setServers] = useState<Server[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const loadServers = async () => {
-    try {
-      setIsLoading(true);
-      setError(null);
-      const serverList = await serverApi.list();
-      setServers(serverList);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load servers');
-      console.error('Failed to load servers:', err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   useEffect(() => {
-    loadServers();
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      try {
+        setServers(JSON.parse(stored));
+      } catch (error) {
+        console.error('Failed to parse servers from localStorage:', error);
+      }
+    }
   }, []);
 
-  const addServer = async (server: Omit<Server, 'id' | 'status' | 'runningAppsCount' | 'lastChecked'>) => {
-    try {
-      const newServer = await serverApi.create(server);
-      setServers(prev => [...prev, newServer]);
-      return newServer;
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to add server';
-      setError(errorMessage);
-      throw new Error(errorMessage);
-    }
+  const saveServers = (newServers: Server[]) => {
+    setServers(newServers);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(newServers));
   };
 
-  const updateServer = async (id: string, updates: Partial<Server>) => {
-    try {
-      const updatedServer = await serverApi.update(id, updates);
-      setServers(prev => prev.map(server => server.id === id ? updatedServer : server));
-      return updatedServer;
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to update server';
-      setError(errorMessage);
-      throw new Error(errorMessage);
-    }
+  const addServer = (server: Omit<Server, 'id' | 'status' | 'runningAppsCount'>) => {
+    // Encrypt the SSH private key before storing
+    const encryptedKey = encrypt(server.sshPrivateKey);
+    
+    const newServer: Server = {
+      ...server,
+      sshPrivateKey: encryptedKey,
+      id: Date.now().toString(),
+      status: 'offline',
+      runningAppsCount: 0,
+    };
+    saveServers([...servers, newServer]);
   };
 
-  const removeServer = async (id: string) => {
-    try {
-      await serverApi.delete(id);
-      setServers(prev => prev.filter(server => server.id !== id));
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to remove server';
-      setError(errorMessage);
-      throw new Error(errorMessage);
+  const updateServer = (id: string, updates: Partial<Server>) => {
+    // If updating SSH private key, encrypt it
+    if (updates.sshPrivateKey) {
+      updates.sshPrivateKey = encrypt(updates.sshPrivateKey);
     }
+    
+    saveServers(servers.map(server => server.id === id ? { ...server, ...updates } : server));
   };
 
-  const testServerConnection = async (id: string) => {
-    try {
-      const result = await serverApi.testConnection(id);
-      // Update the server in the local state
-      setServers(prev => prev.map(server => 
-        server.id === id 
-          ? { 
-              ...server, 
-              status: result.status as 'online' | 'offline' | 'checking',
-              runningAppsCount: result.runningAppsCount,
-              lastChecked: result.lastChecked
-            }
-          : server
-      ));
-      return result;
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to test server connection';
-      setError(errorMessage);
-      throw new Error(errorMessage);
-    }
-  };
-
-  const refreshAllServers = async () => {
-    try {
-      setIsLoading(true);
-      const result = await serverApi.refreshAll();
-      setServers(result.servers);
-      return result;
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to refresh servers';
-      setError(errorMessage);
-      throw new Error(errorMessage);
-    } finally {
-      setIsLoading(false);
-    }
+  const removeServer = (id: string) => {
+    saveServers(servers.filter(server => server.id !== id));
   };
 
   return {
     servers,
-    isLoading,
-    error,
     addServer,
     updateServer,
     removeServer,
-    testServerConnection,
-    refreshAllServers,
-    refetch: loadServers,
   };
 }

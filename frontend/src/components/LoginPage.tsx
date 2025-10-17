@@ -35,25 +35,25 @@ export function LoginPage({ onLogin }: LoginPageProps) {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 flex items-center justify-center p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="space-y-4">
+    <div className="min-h-screen flex items-center justify-center p-4">
+      <Card className="w-full max-w-md bg-white rounded-3xl shadow-[0_8px_40px_rgba(0,0,0,0.12)] border-0">
+        <CardHeader className="space-y-6 pt-12">
           <div className="flex justify-center">
-            <div className="h-16 w-16 rounded-lg bg-indigo-600 flex items-center justify-center">
-              <Activity className="h-8 w-8 text-white" />
+            <div className="h-20 w-20 rounded-3xl bg-primary flex items-center justify-center shadow-lg">
+              <Activity className="h-10 w-10 text-white" />
             </div>
           </div>
           <div className="text-center space-y-2">
-            <CardTitle>DevOps Dashboard</CardTitle>
+            <CardTitle className="text-3xl">DevOps Dashboard</CardTitle>
             <CardDescription>
               Sign in to manage your applications
             </CardDescription>
           </div>
         </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
+        <CardContent className="pb-12">
+          <form onSubmit={handleSubmit} className="space-y-5">
             {error && (
-              <Alert variant="destructive">
+              <Alert variant="destructive" className="rounded-2xl border-0 bg-red-50">
                 <AlertCircle className="h-4 w-4" />
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
@@ -69,6 +69,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
                 placeholder="Enter your username"
                 required
                 autoComplete="username"
+                className="rounded-2xl h-12 bg-secondary border-0"
               />
             </div>
             
@@ -82,12 +83,13 @@ export function LoginPage({ onLogin }: LoginPageProps) {
                 placeholder="Enter your password"
                 required
                 autoComplete="current-password"
+                className="rounded-2xl h-12 bg-secondary border-0"
               />
             </div>
 
             <Button
               type="submit"
-              className="w-full bg-indigo-600 hover:bg-indigo-700"
+              className="w-full bg-accent hover:bg-accent/90 text-accent-foreground rounded-full h-12 mt-6"
               disabled={isLoading}
             >
               {isLoading ? (

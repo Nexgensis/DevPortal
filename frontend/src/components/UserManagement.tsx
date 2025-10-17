@@ -34,7 +34,9 @@ export function UserManagement() {
       const userList = await userApi.list();
       setUsers(userList);
     } catch (error) {
-      toast.error('Failed to load users');
+      console.error('Failed to load users:', error);
+      // Don't show error toast for mock API
+      setUsers([]);
     } finally {
       setIsLoading(false);
     }
@@ -59,7 +61,8 @@ export function UserManagement() {
       resetForm();
       loadUsers();
     } catch (error) {
-      toast.error(editingUser ? 'Failed to update user' : 'Failed to create user');
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      toast.error(errorMessage);
     }
   };
 
@@ -82,7 +85,8 @@ export function UserManagement() {
         toast.success('User deleted successfully');
         loadUsers();
       } catch (error) {
-        toast.error('Failed to delete user');
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        toast.error(errorMessage);
       }
     }
   };
@@ -191,7 +195,22 @@ export function UserManagement() {
       </CardHeader>
       <CardContent>
         {isLoading ? (
-          <div>Loading users...</div>
+          <div className="text-center py-8">
+            <div className="animate-pulse">Loading users...</div>
+          </div>
+        ) : users.length === 0 ? (
+          <div className="text-center py-16 px-4">
+            <div className="h-24 w-24 rounded-3xl bg-secondary/50 flex items-center justify-center mx-auto mb-4">
+              <Users className="h-12 w-12 text-muted-foreground/60" />
+            </div>
+            <h3 className="text-foreground mb-2">No Users Available</h3>
+            <p className="text-muted-foreground mb-4 max-w-md mx-auto">
+              User management requires backend integration. Connect your authentication system to manage users and their access permissions.
+            </p>
+            <div className="text-sm text-muted-foreground bg-secondary/50 rounded-2xl p-4 max-w-lg mx-auto">
+              <strong>Backend Setup Required:</strong> Configure your authentication backend with the API endpoints for user CRUD operations. Currently using local authentication only.
+            </div>
+          </div>
         ) : (
           <div className="space-y-2">
             {users.map((user) => (

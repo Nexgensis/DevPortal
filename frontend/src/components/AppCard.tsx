@@ -156,26 +156,26 @@ export function AppCard({ app, server, project, onUpdateApp, onStartApp, onStopA
   };
 
   return (
-    <Card className="relative overflow-hidden transition-all duration-300 hover:shadow-lg hover:scale-[1.02]">
-      <CardHeader className="pb-3">
-        <div className="flex items-start justify-between">
+    <Card className="relative overflow-hidden transition-all duration-300 hover:shadow-[0_8px_40px_rgba(0,0,0,0.12)] hover:-translate-y-1 bg-white rounded-[2rem] border-0 shadow-[0_4px_24px_rgba(0,0,0,0.06)]">
+      <CardHeader className="pb-4">
+        <div className="flex items-start justify-between mb-3">
           <div className="flex-1">
-            <CardTitle className="flex items-center gap-2">
-              {app.name}
+            <div className="flex items-center gap-3 mb-2">
+              <h3 className="text-foreground">{app.name}</h3>
               <Badge
                 variant={app.status === 'running' ? 'default' : 'secondary'}
                 className={`
-                  transition-all duration-300
+                  transition-all duration-300 rounded-full px-3 py-1
                   ${app.status === 'running' 
-                    ? 'bg-green-500 hover:bg-green-600 animate-pulse' 
-                    : 'bg-gray-400 hover:bg-gray-500'
+                    ? 'bg-gradient-to-r from-green-500 to-green-400 hover:from-green-600 hover:to-green-500 animate-pulse text-white shadow-sm' 
+                    : 'bg-secondary text-muted-foreground'
                   }
                 `}
               >
                 {app.status}
               </Badge>
-            </CardTitle>
-            <CardDescription className="mt-1">
+            </div>
+            <CardDescription>
               {project?.name || 'No Project'}
             </CardDescription>
           </div>
@@ -184,7 +184,7 @@ export function AppCard({ app, server, project, onUpdateApp, onStartApp, onStopA
               variant="ghost"
               size="icon"
               onClick={() => onEditApp(app)}
-              className="h-8 w-8 transition-colors"
+              className="h-10 w-10 rounded-2xl hover:bg-secondary/50"
             >
               <Settings className="h-4 w-4" />
             </Button>
@@ -193,87 +193,83 @@ export function AppCard({ app, server, project, onUpdateApp, onStartApp, onStopA
       </CardHeader>
       <CardContent>
         <div className="space-y-3">
-          <div className="text-muted-foreground space-y-2">
+          {/* App Details Group */}
+          <div className="space-y-2.5">
             {/* Domain */}
-            <div className="flex items-center gap-2">
-              <Globe className="h-4 w-4 text-indigo-500" />
+            <div className="flex items-center gap-3 bg-gradient-to-r from-secondary/60 to-secondary/30 rounded-2xl px-4 py-3 group hover:from-secondary hover:to-secondary/60 transition-all">
+              <Globe className="h-4 w-4 text-primary flex-shrink-0" />
               <a
                 href={formatDomain(app.domain)}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-indigo-600 dark:text-indigo-400 hover:underline truncate flex-1"
+                className="text-primary hover:underline truncate flex-1 transition-all"
               >
                 {app.domain}
               </a>
-              <ExternalLink className="h-3 w-3 text-indigo-500" />
+              <ExternalLink className="h-3.5 w-3.5 text-primary opacity-60 group-hover:opacity-100 transition-opacity" />
             </div>
 
             {/* Server info */}
-            <div className="flex items-center gap-2">
-              <ServerIcon className="h-4 w-4 text-slate-500" />
-              <span className="text-slate-500 truncate flex-1">
+            <div className="flex items-center gap-3 bg-gradient-to-r from-secondary/60 to-secondary/30 rounded-2xl px-4 py-3">
+              <ServerIcon className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+              <span className="text-muted-foreground truncate flex-1">
                 {server?.name || 'Unknown Server'}
               </span>
               {server && (
                 <Badge 
                   variant="outline" 
-                  className={server.status === 'online' ? 'border-green-500 text-green-500' : 'border-red-500 text-red-500'}
+                  className={`rounded-full px-2.5 ${server.status === 'online' ? 'border-green-500 text-green-600 bg-green-50' : 'border-red-500 text-red-600 bg-red-50'}`}
                 >
                   {server.status}
                 </Badge>
               )}
             </div>
-
-            {/* Compose path */}
-            <p className="text-slate-500 truncate pl-6" title={app.cdPath}>
-              {app.cdPath}
-            </p>
             
             {/* Total run time display/edit */}
-            <div className="flex items-center gap-2">
-              <Clock className="h-4 w-4 text-slate-500" />
+            <div className="flex items-center gap-3 bg-secondary/50 rounded-2xl px-3 py-2">
+              <Clock className="h-4 w-4 text-muted-foreground" />
               {isEditingTimeout ? (
-                <div className="flex items-center gap-1 flex-1">
+                <div className="flex items-center gap-2 flex-1">
                   <Input
                     type="number"
                     min="1"
                     value={newTimeout}
                     onChange={(e) => setNewTimeout(e.target.value)}
-                    className="h-7 w-20"
+                    className="h-8 w-20 rounded-xl"
                   />
-                  <span className="text-slate-500">min</span>
+                  <span className="text-muted-foreground">min</span>
                   <Button
                     size="icon"
                     variant="ghost"
-                    className="h-7 w-7"
+                    className="h-8 w-8 rounded-xl"
                     onClick={handleUpdateTimeout}
                   >
-                    <Check className="h-4 w-4 text-green-500" />
+                    <Check className="h-4 w-4 text-green-600" />
                   </Button>
                   <Button
                     size="icon"
                     variant="ghost"
-                    className="h-7 w-7"
+                    className="h-8 w-8 rounded-xl"
                     onClick={handleCancelTimeout}
                   >
-                    <X className="h-4 w-4 text-red-500" />
+                    <X className="h-4 w-4 text-red-600" />
                   </Button>
                 </div>
               ) : (
-                <div className="flex items-center gap-2 flex-1">
-                  <span className="text-slate-500">
-                    Run time: {formatRunTime(app.autoStopTimeout ?? 60)}
+                <div className="flex items-center justify-between flex-1">
+                  <span className="text-muted-foreground">
+                    Runtime: {formatRunTime(app.autoStopTimeout ?? 60)}
                   </span>
                   <Button
                     size="icon"
                     variant="ghost"
-                    className="h-6 w-6"
+                    className="h-7 w-7 rounded-xl hover:bg-white"
                     onClick={() => {
                       setIsEditingTimeout(true);
                       setNewTimeout((app.autoStopTimeout ?? 60).toString());
                     }}
                   >
-                    <Edit2 className="h-3 w-3" />
+                    <Edit2 className="h-3.5 w-3.5" />
                   </Button>
                 </div>
               )}
@@ -281,29 +277,30 @@ export function AppCard({ app, server, project, onUpdateApp, onStartApp, onStopA
             
             {/* Countdown timer */}
             {timeRemaining !== null && (
-              <div className="flex items-center gap-2 text-orange-500">
-                <Clock className="h-4 w-4 animate-pulse" />
-                <span>Stops in {formatTime(timeRemaining)}</span>
+              <div className="flex items-center gap-3 bg-gradient-to-r from-accent/20 to-accent/10 rounded-2xl px-4 py-3 border border-accent/20">
+                <Clock className="h-4 w-4 text-accent-foreground animate-pulse flex-shrink-0" />
+                <span className="text-accent-foreground">Auto-stop in {formatTime(timeRemaining)}</span>
               </div>
             )}
           </div>
           
-          <div className="flex gap-2">
+          {/* Action Buttons */}
+          <div className="flex gap-3 pt-2">
             {app.status === 'stopped' ? (
               <Button
                 onClick={handleStart}
                 disabled={isLoading || !server || server.status !== 'online'}
-                className="flex-1 bg-indigo-600 hover:bg-indigo-700 transition-all duration-200"
+                className="flex-1 bg-gradient-to-r from-accent to-accent/90 hover:from-accent/90 hover:to-accent/80 text-accent-foreground rounded-full h-12 shadow-sm transition-all duration-200"
               >
                 {isLoading ? (
                   <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
                     Starting...
                   </>
                 ) : (
                   <>
-                    <Play className="mr-2 h-4 w-4" />
-                    Start
+                    <Play className="mr-2 h-5 w-5" />
+                    Start Application
                   </>
                 )}
               </Button>
@@ -312,17 +309,17 @@ export function AppCard({ app, server, project, onUpdateApp, onStartApp, onStopA
                 onClick={handleStop}
                 disabled={isLoading || !server}
                 variant="destructive"
-                className="flex-1 transition-all duration-200"
+                className="flex-1 rounded-full h-12 shadow-sm transition-all duration-200"
               >
                 {isLoading ? (
                   <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
                     Stopping...
                   </>
                 ) : (
                   <>
-                    <Square className="mr-2 h-4 w-4" />
-                    Stop
+                    <Square className="mr-2 h-5 w-5" />
+                    Stop Application
                   </>
                 )}
               </Button>

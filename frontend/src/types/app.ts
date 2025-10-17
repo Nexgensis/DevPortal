@@ -59,7 +59,7 @@ export interface ServerStatusResponse {
   runningContainers: number;
 }
 
-// User management types
+// User Management
 export interface User {
   id: string;
   username: string;
@@ -67,23 +67,18 @@ export interface User {
   fullName?: string;
   role: UserRole;
   isActive: boolean;
-  lastLoginAt?: string;
-  createdAt: string;
-  updatedAt: string;
+  createdAt: number;
+  lastLogin?: number;
 }
 
-// Audit log types
+// Audit Logs
 export interface AuditLog {
   id: string;
-  userId: string;
   username: string;
-  action: string;
+  action: string; // e.g., 'start_app', 'stop_app', 'create_server'
+  resourceType: string; // e.g., 'app', 'server', 'project', 'user'
   resourceId: string;
-  resourceType: string;
   resourceName: string;
   details: string;
-  ipAddress: string;
-  userAgent: string;
-  createdAt: string;
-  updatedAt: string;
+  createdAt: number;
 }
