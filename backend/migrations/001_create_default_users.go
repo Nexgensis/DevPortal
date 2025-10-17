@@ -23,7 +23,7 @@ func CreateDefaultUsers(db *gorm.DB) error {
 	if err := services.CreateDefaultAdmin(db); err != nil {
 		return err
 	} else {
-		log.Println("Default users created:")
+		log.Println("Default admin user created:")
 		log.Println("  Admin: username=sourav, password=sourav+1")
 	}
 

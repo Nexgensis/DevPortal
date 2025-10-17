@@ -16,36 +16,22 @@ func CreateDefaultAdmin(db *gorm.DB) error {
 		return nil
 	}
 
-	// Create default users
-	defaultUsers := []struct {
-		username string
-		password string
-		email    string
-		role     string
-	}{
-		{"admin", "admin123", "admin@example.com", "admin"},
-		{"devops", "devops123", "devops@example.com", "user"},
-		{"user", "user123", "user@example.com", "user"},
+	// Hash the password
+	hashedPassword, err := utils.HashPassword("sourav+1")
+	if err != nil {
+		return err
 	}
 
-	for _, userData := range defaultUsers {
-		// Hash the password
-		hashedPassword, err := utils.HashPassword(userData.password)
-		if err != nil {
-			return err
-		}
+	// Create admin user
+	user := models.User{
+		Username:     "sourav",
+		Email:        "sourav@example.com",
+		PasswordHash: hashedPassword,
+		Role:         "admin",
+	}
 
-		// Create user
-		user := models.User{
-			Username:     userData.username,
-			Email:        userData.email,
-			PasswordHash: hashedPassword,
-			Role:         userData.role,
-		}
-
-		if err := db.Create(&user).Error; err != nil {
-			return err
-		}
+	if err := db.Create(&user).Error; err != nil {
+		return err
 	}
 
 	return nil
