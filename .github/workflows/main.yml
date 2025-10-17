@@ -47,23 +47,11 @@ jobs:
       host: ${{ secrets.DEMO_SERVER_IP }}
       ssh_key: ${{ secrets.SERVER_SSH_KEY }}
       username: root
-
-  cleanup-backend:
-    needs: [deploy]
-    uses: Nexgensis/github-actions/.github/workflows/cleanup-docker-images.yml@main
-    with:
-      image_name: ghcr.io/nexgensis/${{ github.event.inputs.project_name }}-backend
-      environment: Staging
-    secrets:
-      host: ${{ secrets.DEMO_SERVER_IP }} 
-      ssh_key: ${{ secrets.SERVER_SSH_KEY }}
-      username: root
   
-  cleanup-frontend:
+  cleanup:
     needs: [deploy]
     uses: Nexgensis/github-actions/.github/workflows/cleanup-docker-images.yml@main
     with:
-      image_name: ghcr.io/nexgensis/${{ github.event.inputs.project_name }}-frontend
       environment: Staging
     secrets:
       host: ${{ secrets.DEMO_SERVER_IP }} 
@@ -71,7 +59,7 @@ jobs:
       username: root
 
   release-notes:
-    needs: [cleanup-backend, cleanup-frontend]
+    needs: [cleanup]
     uses: Nexgensis/github-actions/.github/workflows/release-notes.yml@main
   
   # release-email:
