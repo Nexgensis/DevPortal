@@ -20,7 +20,7 @@ import { Toaster } from './components/ui/sonner';
 export default function App() {
   const { user, isLoading: authLoading, isAuthenticated, isAdmin, login, logout } = useAuth();
   const { apps, addApp, updateApp, removeApp, startApp, stopApp, getAppsByProject, getAppsByServer, isLoading: appsLoading, error: appsError } = useApps();
-  const { servers, addServer, updateServer, removeServer, isLoading: serversLoading, error: serversError } = useServers();
+  const { servers, addServer, updateServer, removeServer, refreshAllServers, isLoading: serversLoading, error: serversError } = useServers();
   const { projects, addProject, updateProject, removeProject, isLoading: projectsLoading, error: projectsError } = useProjects();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingApp, setEditingApp] = useState<App | null>(null);
@@ -58,13 +58,10 @@ export default function App() {
   const handleRefreshServers = async () => {
     setIsRefreshingServers(true);
     try {
-      // Refresh all data from backend
-      await Promise.all([
-        servers.length > 0 ? Promise.resolve() : Promise.resolve(), // Server refresh handled by useServers
-        apps.length > 0 ? Promise.resolve() : Promise.resolve(), // App refresh handled by useApps
-      ]);
+      // Use the new refresh functionality from useServers hook
+      await refreshAllServers();
     } catch (error) {
-      console.error('Failed to refresh data:', error);
+      console.error('Failed to refresh servers:', error);
     } finally {
       setIsRefreshingServers(false);
     }
