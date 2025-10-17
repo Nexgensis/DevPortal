@@ -100,7 +100,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
               )}
             </Button>
 
-            <div className="mt-4 p-3 bg-slate-100 dark:bg-slate-800 rounded-md">
+            {/* <div className="mt-4 p-3 bg-slate-100 dark:bg-slate-800 rounded-md">
               <p className="text-muted-foreground text-center">
                 Demo credentials:
               </p>
@@ -115,7 +115,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
                   <strong>user</strong> / user123 (User)
                 </p>
               </div>
-            </div>
+            </div> */}
           </form>
         </CardContent>
       </Card>
