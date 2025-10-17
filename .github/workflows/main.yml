@@ -17,8 +17,8 @@ jobs:
     uses: Nexgensis/github-actions/.github/workflows/docker-image-build.yml@main
     with:
       image_name: webmanager-backend
-      context: .
-      dockerfile: Dockerfile.Backend
+      context: backend
+      dockerfile: Dockerfile
       branch: main
       environment: Staging
 
@@ -27,8 +27,8 @@ jobs:
     uses: Nexgensis/github-actions/.github/workflows/docker-image-build.yml@main
     with:
       image_name: webmanager-frontend
-      context: .
-      dockerfile: Dockerfile.Frontend
+      context: frontend
+      dockerfile: Dockerfile
       branch: main
       environment: Staging
 
