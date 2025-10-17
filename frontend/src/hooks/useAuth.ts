@@ -1,27 +1,8 @@
 import { useState, useEffect } from 'react';
 import { AuthUser, LoginCredentials, UserRole } from '../types/app';
+import { authApi } from '../lib/api';
 
 const AUTH_STORAGE_KEY = 'devops-dashboard-auth';
-
-// Mock authentication - In production, this would call a real backend API
-const MOCK_USERS: Array<{ username: string; password: string; role: UserRole }> = [
-  { username: 'admin', password: 'admin123', role: 'admin' },
-  { username: 'devops', password: 'devops123', role: 'user' },
-  { username: 'user', password: 'user123', role: 'user' },
-];
-
-// Simple JWT mock generator
-function generateMockJWT(username: string, role: UserRole): string {
-  const header = btoa(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
-  const payload = btoa(JSON.stringify({ 
-    username, 
-    role,
-    exp: Date.now() + 24 * 60 * 60 * 1000, // 24 hours
-    iat: Date.now() 
-  }));
-  const signature = btoa(`mock-signature-${username}-${Date.now()}`);
-  return `${header}.${payload}.${signature}`;
-}
 
 export function useAuth() {
   const [user, setUser] = useState<AuthUser | null>(null);
@@ -32,44 +13,76 @@ export function useAuth() {
     if (stored) {
       try {
         const authUser = JSON.parse(stored) as AuthUser;
-        // Ensure role exists (migration for existing users)
-        if (!authUser.role) {
-          authUser.role = authUser.username === 'admin' ? 'admin' : 'user';
-        }
-        setUser(authUser);
+        // Verify token is still valid by calling the API
+        authApi.verify()
+          .then((response) => {
+            // Update user info from server response
+            const updatedUser = {
+              ...authUser,
+              username: response.user.username,
+              role: response.user.role as UserRole
+            };
+            setUser(updatedUser);
+            localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(updatedUser));
+          })
+          .catch(() => {
+            // Token is invalid, remove it
+            localStorage.removeItem(AUTH_STORAGE_KEY);
+            setUser(null);
+          })
+          .finally(() => {
+            setIsLoading(false);
+          });
       } catch (error) {
         console.error('Failed to parse auth from localStorage:', error);
         localStorage.removeItem(AUTH_STORAGE_KEY);
+        setIsLoading(false);
       }
+    } else {
+      setIsLoading(false);
     }
-    setIsLoading(false);
   }, []);
 
   const login = async (credentials: LoginCredentials): Promise<boolean> => {
-    // Mock authentication - In production, this would be an API call
-    const mockUser = MOCK_USERS.find(
-      u => u.username === credentials.username && u.password === credentials.password
-    );
+    try {
+      const response = await authApi.login(credentials);
+      
+      // Store token temporarily to make verify call
+      const tempAuthUser: AuthUser = {
+        username: credentials.username,
+        role: 'user', // temporary, will be updated from verify
+        token: response.token,
+      };
+      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(tempAuthUser));
+      
+      // Get user details from verify endpoint
+      const userResponse = await authApi.verify();
+      
+      const authUser: AuthUser = {
+        username: userResponse.user.username,
+        role: userResponse.user.role as UserRole,
+        token: response.token,
+      };
 
-    if (!mockUser) {
+      setUser(authUser);
+      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(authUser));
+      return true;
+    } catch (error) {
+      console.error('Login failed:', error);
+      localStorage.removeItem(AUTH_STORAGE_KEY);
       return false;
     }
-
-    const token = generateMockJWT(credentials.username, mockUser.role);
-    const authUser: AuthUser = {
-      username: credentials.username,
-      role: mockUser.role,
-      token,
-    };
-
-    setUser(authUser);
-    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(authUser));
-    return true;
   };
 
-  const logout = () => {
-    setUser(null);
-    localStorage.removeItem(AUTH_STORAGE_KEY);
+  const logout = async () => {
+    try {
+      await authApi.logout();
+    } catch (error) {
+      console.error('Logout API call failed:', error);
+    } finally {
+      setUser(null);
+      localStorage.removeItem(AUTH_STORAGE_KEY);
+    }
   };
 
   const isAdmin = user?.role === 'admin';
