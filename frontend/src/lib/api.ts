@@ -1,4 +1,4 @@
-import { Server, Project, App, AuthUser, LoginCredentials } from '../types/app';
+import { Server, Project, App, AuthUser, LoginCredentials, User, AuditLog } from '../types/app';
 
 const API_BASE = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : '/api';
 

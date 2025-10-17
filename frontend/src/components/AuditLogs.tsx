@@ -35,10 +35,13 @@ export function AuditLogs() {
         action: filters.action || undefined,
         resourceType: filters.resourceType || undefined,
       });
-      setLogs(result.logs);
-      setTotal(result.total);
+      setLogs(result.logs || []);
+      setTotal(result.total || 0);
     } catch (error) {
+      console.error('Failed to load audit logs:', error);
       toast.error('Failed to load audit logs');
+      setLogs([]);
+      setTotal(0);
     } finally {
       setIsLoading(false);
     }

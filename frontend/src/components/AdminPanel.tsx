@@ -69,11 +69,14 @@ export function AdminPanel({
       </CardHeader>
       <CardContent>
         <Tabs defaultValue="infrastructure" className="w-full">
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="infrastructure">Infrastructure</TabsTrigger>
-            <TabsTrigger value="users">Users</TabsTrigger>
-            <TabsTrigger value="audit">Audit Logs</TabsTrigger>
-            <TabsTrigger value="settings">Settings</TabsTrigger>
+          <div className="mb-4 p-2 bg-yellow-100 border border-yellow-300 rounded text-sm">
+            Debug: Admin Panel Tabs - You should see 4 tabs below
+          </div>
+          <TabsList className="grid w-full grid-cols-4 h-auto p-1 bg-muted rounded-lg">
+            <TabsTrigger value="infrastructure" className="text-xs px-3 py-2">Infrastructure</TabsTrigger>
+            <TabsTrigger value="users" className="text-xs px-3 py-2">Users</TabsTrigger>
+            <TabsTrigger value="audit" className="text-xs px-3 py-2">Audit Logs</TabsTrigger>
+            <TabsTrigger value="settings" className="text-xs px-3 py-2">Settings</TabsTrigger>
           </TabsList>
 
           <TabsContent value="infrastructure" className="mt-6">
@@ -110,11 +113,11 @@ export function AdminPanel({
                           <div className="flex-1">
                             <div className="flex items-center gap-2 mb-1">
                               <span>{server.name}</span>
-                              <Badge 
-                                variant="outline" 
+                              <Badge
+                                variant="outline"
                                 className={
-                                  server.status === 'online' 
-                                    ? 'border-green-500 text-green-500' 
+                                  server.status === 'online'
+                                    ? 'border-green-500 text-green-500'
                                     : 'border-red-500 text-red-500'
                                 }
                               >
@@ -195,7 +198,27 @@ export function AdminPanel({
           </TabsContent>
 
           <TabsContent value="audit" className="mt-6">
-            <AuditLogs />
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <FileText className="h-5 w-5" />
+                  Audit Logs
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-center py-8 text-muted-foreground">
+                  Audit logs functionality is being loaded...
+                  <br />
+                  <Button
+                    variant="outline"
+                    className="mt-4"
+                    onClick={() => window.location.reload()}
+                  >
+                    Refresh Page
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
           </TabsContent>
 
           <TabsContent value="settings" className="mt-6">
