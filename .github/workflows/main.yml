@@ -19,7 +19,7 @@ jobs:
     with:
       image_name: webmanager-backend
       context: backend
-      dockerfile: Dockerfile
+      dockerfile: backend/Dockerfile
       branch: main
       environment: Staging
 
@@ -29,7 +29,7 @@ jobs:
     with:
       image_name: webmanager-frontend
       context: frontend
-      dockerfile: Dockerfile
+      dockerfile: frontend/Dockerfile
       branch: main
       environment: Staging
 
