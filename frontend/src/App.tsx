@@ -5,7 +5,7 @@ import { useProjects } from './hooks/useProjects';
 import { useAuth } from './hooks/useAuth';
 import { AppCard } from './components/AppCard';
 import { AppManagementDialog } from './components/AppManagementDialog';
-import { ServerOverview } from './components/ServerOverview';
+
 import { AdminPanel } from './components/AdminPanel';
 import { LoginPage } from './components/LoginPage';
 import { Button } from './components/ui/button';
@@ -24,7 +24,7 @@ export default function App() {
   const { projects, addProject, updateProject, removeProject, isLoading: projectsLoading, error: projectsError, reload: reloadProjects } = useProjects();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingApp, setEditingApp] = useState<App | null>(null);
-  const [isRefreshingServers, setIsRefreshingServers] = useState(false);
+
   const [searchQuery, setSearchQuery] = useState('');
 
   // Note: Server status polling is now handled by the backend
@@ -55,17 +55,7 @@ export default function App() {
     setDialogOpen(true);
   };
 
-  const handleRefreshServers = async () => {
-    setIsRefreshingServers(true);
-    try {
-      // Use the new refresh functionality from useServers hook
-      await refreshAllServers();
-    } catch (error) {
-      console.error('Failed to refresh servers:', error);
-    } finally {
-      setIsRefreshingServers(false);
-    }
-  };
+
 
   // Group apps by project and filter by search
   const appsByProject = projects.reduce((acc, project) => {
@@ -126,13 +116,6 @@ export default function App() {
             </div>
           </div>
         </div>
-
-        {/* Server Overview */}
-        <ServerOverview
-          servers={servers}
-          onRefresh={handleRefreshServers}
-          isRefreshing={isRefreshingServers}
-        />
 
         {/* Admin Panel (Admin Only) */}
         {isAdmin && (

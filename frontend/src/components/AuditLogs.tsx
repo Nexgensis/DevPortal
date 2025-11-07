@@ -19,12 +19,15 @@ export function AuditLogs() {
     resourceType: '',
     username: '',
   });
+  const [pageSize, setPageSize] = useState(20);
 
-  const pageSize = 20;
+  useEffect(() => {
+    setCurrentPage(1); // Reset to first page when filters or page size change
+  }, [filters, pageSize]);
 
   useEffect(() => {
     loadLogs();
-  }, [currentPage, filters]);
+  }, [currentPage, filters, pageSize]);
 
   const loadLogs = async () => {
     try {
@@ -160,7 +163,7 @@ export function AuditLogs() {
                       {log.action.replace('_', ' ')}
                     </Badge>
                   </div>
-                  
+
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
                       <User className="h-4 w-4 text-muted-foreground" />
@@ -169,7 +172,7 @@ export function AuditLogs() {
                       <span>{log.resourceName}</span>
                       <Badge variant="outline">{log.resourceType}</Badge>
                     </div>
-                    
+
                     <div className="text-sm text-muted-foreground mt-1">
                       {log.details}
                       {formatDuration(log.details) && (
@@ -180,14 +183,14 @@ export function AuditLogs() {
                     </div>
                   </div>
                 </div>
-                
+
                 <div className="text-right text-sm text-muted-foreground">
                   <div>{new Date(log.createdAt).toLocaleDateString()}</div>
                   <div>{new Date(log.createdAt).toLocaleTimeString()}</div>
                 </div>
               </div>
             ))}
-            
+
             {logs.length === 0 && !isLoading && (
               <div className="text-center py-16 px-4">
                 <div className="h-24 w-24 rounded-3xl bg-secondary/50 flex items-center justify-center mx-auto mb-4">
@@ -206,29 +209,151 @@ export function AuditLogs() {
         )}
 
         {/* Pagination */}
-        {totalPages > 1 && (
-          <div className="flex items-center justify-between mt-4">
-            <div className="text-sm text-muted-foreground">
-              Showing {(currentPage - 1) * pageSize + 1} to {Math.min(currentPage * pageSize, total)} of {total} logs
+        {total > 0 && (
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6 pt-4 border-t">
+            <div className="flex items-center gap-4">
+              <div className="text-sm text-muted-foreground">
+                Showing {(currentPage - 1) * pageSize + 1} to {Math.min(currentPage * pageSize, total)} of {total} logs
+              </div>
+              <Select value={pageSize.toString()} onValueChange={(value) => setPageSize(Number(value))}>
+                <SelectTrigger className="w-32 h-9 rounded-xl">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="10">10 per page</SelectItem>
+                  <SelectItem value="20">20 per page</SelectItem>
+                  <SelectItem value="50">50 per page</SelectItem>
+                  <SelectItem value="100">100 per page</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setCurrentPage(currentPage - 1)}
-                disabled={currentPage === 1}
-              >
-                Previous
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setCurrentPage(currentPage + 1)}
-                disabled={currentPage === totalPages}
-              >
-                Next
-              </Button>
-            </div>
+            {totalPages > 1 && (
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(1)}
+                  disabled={currentPage === 1}
+                  className="rounded-xl"
+                >
+                  First
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(currentPage - 1)}
+                  disabled={currentPage === 1}
+                  className="rounded-xl"
+                >
+                  Previous
+                </Button>
+
+                {/* Page Numbers */}
+                <div className="flex items-center gap-1">
+                  {(() => {
+                    const pages: any[] = [];
+                    const maxVisible = 5;
+                    let startPage = Math.max(1, currentPage - Math.floor(maxVisible / 2));
+                    let endPage = Math.min(totalPages, startPage + maxVisible - 1);
+
+                    if (endPage - startPage < maxVisible - 1) {
+                      startPage = Math.max(1, endPage - maxVisible + 1);
+                    }
+
+                    if (startPage > 1) {
+                      pages.push(
+                        <Button
+                          key={1}
+                          variant={1 === currentPage ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => setCurrentPage(1)}
+                          className="rounded-xl w-10"
+                        >
+                          1
+                        </Button>
+                      );
+                      if (startPage > 2) {
+                        pages.push(
+                          <span key="ellipsis-start" className="px-2 text-muted-foreground">
+                            ...
+                          </span>
+                        );
+                      }
+                    }
+
+                    for (let i = startPage; i <= endPage; i++) {
+                      if (i === 1 && startPage === 1) {
+                        pages.push(
+                          <Button
+                            key={i}
+                            variant={i === currentPage ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => setCurrentPage(i)}
+                            className="rounded-xl w-10"
+                          >
+                            {i}
+                          </Button>
+                        );
+                      } else if (i > 1) {
+                        pages.push(
+                          <Button
+                            key={i}
+                            variant={i === currentPage ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => setCurrentPage(i)}
+                            className="rounded-xl w-10"
+                          >
+                            {i}
+                          </Button>
+                        );
+                      }
+                    }
+
+                    if (endPage < totalPages) {
+                      if (endPage < totalPages - 1) {
+                        pages.push(
+                          <span key="ellipsis-end" className="px-2 text-muted-foreground">
+                            ...
+                          </span>
+                        );
+                      }
+                      pages.push(
+                        <Button
+                          key={totalPages}
+                          variant={totalPages === currentPage ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => setCurrentPage(totalPages)}
+                          className="rounded-xl w-10"
+                        >
+                          {totalPages}
+                        </Button>
+                      );
+                    }
+
+                    return pages;
+                  })()}
+                </div>
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(currentPage + 1)}
+                  disabled={currentPage === totalPages}
+                  className="rounded-xl"
+                >
+                  Next
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(totalPages)}
+                  disabled={currentPage === totalPages}
+                  className="rounded-xl"
+                >
+                  Last
+                </Button>
+              </div>
+            )}
           </div>
         )}
       </CardContent>
