@@ -15,11 +15,22 @@ export function useServers() {
       const auth = localStorage.getItem('devops-dashboard-auth');
       setIsAuthenticated(!!auth);
     };
-    
+
     checkAuth();
+
     // Listen for storage changes (login/logout in other tabs)
     window.addEventListener('storage', checkAuth);
-    return () => window.removeEventListener('storage', checkAuth);
+
+    // Listen for login event
+    const handleLogin = () => {
+      checkAuth();
+    };
+    window.addEventListener('auth-login', handleLogin);
+
+    return () => {
+      window.removeEventListener('storage', checkAuth);
+      window.removeEventListener('auth-login', handleLogin);
+    };
   }, []);
 
   const loadServers = async () => {
@@ -27,7 +38,7 @@ export function useServers() {
       setIsLoading(false);
       return;
     }
-    
+
     try {
       setIsLoading(true);
       setError(null);
@@ -87,14 +98,14 @@ export function useServers() {
   const testServerConnection = async (id: string) => {
     try {
       const result = await serverApi.testConnection(id);
-      setServers(prev => prev.map(server => 
-        server.id === id 
-          ? { 
-              ...server, 
-              status: result.status as 'online' | 'offline' | 'checking',
-              runningAppsCount: result.runningAppsCount,
-              lastChecked: result.lastChecked
-            }
+      setServers(prev => prev.map(server =>
+        server.id === id
+          ? {
+            ...server,
+            status: result.status as 'online' | 'offline' | 'checking',
+            runningAppsCount: result.runningAppsCount,
+            lastChecked: result.lastChecked
+          }
           : server
       ));
       return result;

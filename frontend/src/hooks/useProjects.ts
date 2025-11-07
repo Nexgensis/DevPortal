@@ -17,9 +17,20 @@ export function useProjects() {
     };
     
     checkAuth();
+    
     // Listen for storage changes (login/logout in other tabs)
     window.addEventListener('storage', checkAuth);
-    return () => window.removeEventListener('storage', checkAuth);
+    
+    // Listen for login event
+    const handleLogin = () => {
+      checkAuth();
+    };
+    window.addEventListener('auth-login', handleLogin);
+    
+    return () => {
+      window.removeEventListener('storage', checkAuth);
+      window.removeEventListener('auth-login', handleLogin);
+    };
   }, []);
 
   const loadProjects = async () => {

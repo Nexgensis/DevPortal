@@ -66,6 +66,10 @@ export function useAuth() {
 
       setUser(authUser);
       localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(authUser));
+      
+      // Dispatch custom event to notify other hooks
+      window.dispatchEvent(new CustomEvent('auth-login'));
+      
       return true;
     } catch (error) {
       console.error('Login failed:', error);

@@ -27,15 +27,6 @@ export default function App() {
   const [isRefreshingServers, setIsRefreshingServers] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Reload all data when authentication status changes
-  useEffect(() => {
-    if (isAuthenticated && !authLoading) {
-      reloadApps();
-      reloadServers();
-      reloadProjects();
-    }
-  }, [isAuthenticated, authLoading]);
-
   // Note: Server status polling is now handled by the backend
 
   // Show login page if not authenticated
