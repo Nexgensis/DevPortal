@@ -19,13 +19,22 @@ import { Toaster } from './components/ui/sonner';
 
 export default function App() {
   const { user, isLoading: authLoading, isAuthenticated, isAdmin, login, logout } = useAuth();
-  const { apps, addApp, updateApp, removeApp, startApp, stopApp, getAppsByProject, getAppsByServer, isLoading: appsLoading, error: appsError } = useApps();
-  const { servers, addServer, updateServer, removeServer, refreshAllServers, isLoading: serversLoading, error: serversError } = useServers();
-  const { projects, addProject, updateProject, removeProject, isLoading: projectsLoading, error: projectsError } = useProjects();
+  const { apps, addApp, updateApp, removeApp, startApp, stopApp, getAppsByProject, getAppsByServer, isLoading: appsLoading, error: appsError, reload: reloadApps } = useApps();
+  const { servers, addServer, updateServer, removeServer, refreshAllServers, isLoading: serversLoading, error: serversError, reload: reloadServers } = useServers();
+  const { projects, addProject, updateProject, removeProject, isLoading: projectsLoading, error: projectsError, reload: reloadProjects } = useProjects();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingApp, setEditingApp] = useState<App | null>(null);
   const [isRefreshingServers, setIsRefreshingServers] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Reload all data when authentication status changes
+  useEffect(() => {
+    if (isAuthenticated && !authLoading) {
+      reloadApps();
+      reloadServers();
+      reloadProjects();
+    }
+  }, [isAuthenticated, authLoading]);
 
   // Note: Server status polling is now handled by the backend
 

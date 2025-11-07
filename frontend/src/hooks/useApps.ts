@@ -7,8 +7,27 @@ export function useApps() {
   const [apps, setApps] = useState<App[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+  // Check authentication status
+  useEffect(() => {
+    const checkAuth = () => {
+      const auth = localStorage.getItem('devops-dashboard-auth');
+      setIsAuthenticated(!!auth);
+    };
+    
+    checkAuth();
+    // Listen for storage changes (login/logout in other tabs)
+    window.addEventListener('storage', checkAuth);
+    return () => window.removeEventListener('storage', checkAuth);
+  }, []);
 
   const loadApps = async () => {
+    if (!isAuthenticated) {
+      setIsLoading(false);
+      return;
+    }
+    
     try {
       setIsLoading(true);
       setError(null);
@@ -25,7 +44,18 @@ export function useApps() {
 
   useEffect(() => {
     loadApps();
-  }, []);
+  }, [isAuthenticated]);
+
+  // Periodic refresh to sync app states (especially timers)
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    
+    const interval = setInterval(() => {
+      loadApps();
+    }, 30000); // Refresh every 30 seconds
+    
+    return () => clearInterval(interval);
+  }, [isAuthenticated]);
 
   const addApp = async (app: Omit<App, 'id' | 'status' | 'startedAt'>): Promise<App> => {
     try {
@@ -70,7 +100,12 @@ export function useApps() {
       const result = await appApi.start(id, timeoutMinutes);
       setApps(prev => prev.map(app => 
         app.id === id 
-          ? { ...app, status: 'running', startedAt: Date.now() }
+          ? { 
+              ...app, 
+              status: 'running', 
+              startedAt: Date.now(),
+              timerEndsAt: result.timer_ends_at || null
+            }
           : app
       ));
       toast.success(result.message);
@@ -87,7 +122,7 @@ export function useApps() {
       const result = await appApi.stop(id);
       setApps(prev => prev.map(app => 
         app.id === id 
-          ? { ...app, status: 'stopped', startedAt: undefined }
+          ? { ...app, status: 'stopped', startedAt: undefined, timerEndsAt: null }
           : app
       ));
       toast.success(result.message);

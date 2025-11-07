@@ -7,8 +7,27 @@ export function useServers() {
   const [servers, setServers] = useState<Server[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+  // Check authentication status
+  useEffect(() => {
+    const checkAuth = () => {
+      const auth = localStorage.getItem('devops-dashboard-auth');
+      setIsAuthenticated(!!auth);
+    };
+    
+    checkAuth();
+    // Listen for storage changes (login/logout in other tabs)
+    window.addEventListener('storage', checkAuth);
+    return () => window.removeEventListener('storage', checkAuth);
+  }, []);
 
   const loadServers = async () => {
+    if (!isAuthenticated) {
+      setIsLoading(false);
+      return;
+    }
+    
     try {
       setIsLoading(true);
       setError(null);
@@ -25,7 +44,7 @@ export function useServers() {
 
   useEffect(() => {
     loadServers();
-  }, []);
+  }, [isAuthenticated]);
 
   const addServer = async (server: Omit<Server, 'id' | 'status' | 'runningAppsCount' | 'lastChecked'>): Promise<Server> => {
     try {

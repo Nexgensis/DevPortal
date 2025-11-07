@@ -25,14 +25,11 @@ export function AppCard({ app, server, project, onUpdateApp, onStartApp, onStopA
   const [isEditingTimeout, setIsEditingTimeout] = useState(false);
   const [newTimeout, setNewTimeout] = useState((app.autoStopTimeout ?? 60).toString());
 
-  // Calculate time remaining
+  // Calculate time remaining using timerEndsAt for persistence
   useEffect(() => {
-    if (app.status === 'running' && app.startedAt) {
+    if (app.status === 'running' && app.timerEndsAt) {
       const updateTimer = () => {
-        const elapsed = Date.now() - app.startedAt!;
-        const timeout = app.autoStopTimeout ?? 60;
-        const timeoutMs = timeout * 60 * 1000;
-        const remaining = Math.max(0, timeoutMs - elapsed);
+        const remaining = Math.max(0, app.timerEndsAt! - Date.now());
         setTimeRemaining(remaining);
 
         if (remaining === 0) {
@@ -46,7 +43,7 @@ export function AppCard({ app, server, project, onUpdateApp, onStartApp, onStopA
     } else {
       setTimeRemaining(null);
     }
-  }, [app.status, app.startedAt, app.autoStopTimeout]);
+  }, [app.status, app.timerEndsAt]);
 
   const formatTime = (ms: number) => {
     const totalSeconds = Math.floor(ms / 1000);

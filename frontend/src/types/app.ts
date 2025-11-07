@@ -33,6 +33,7 @@ export interface App {
   autoStopTimeout: number; // in minutes (Total Run Time)
   status: 'running' | 'stopped';
   startedAt?: number; // timestamp
+  timerEndsAt?: number | null; // timestamp when timer ends (for persistence)
 }
 
 // Auth

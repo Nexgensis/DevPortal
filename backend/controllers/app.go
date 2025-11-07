@@ -112,8 +112,12 @@ func StartApp(db *gorm.DB) gin.HandlerFunc {
 		app.StartedAt = &now
 		if input.TimeoutMinutes > 0 {
 			app.AutoStopTimeout = input.TimeoutMinutes
+			// Set timer end time in milliseconds for frontend compatibility
+			timerEnd := now.Add(time.Duration(input.TimeoutMinutes) * time.Minute).UnixMilli()
+			app.TimerEndsAt = &timerEnd
 		} else {
 			app.AutoStopTimeout = 0 // Manual stop
+			app.TimerEndsAt = nil
 		}
 
 		db.Save(&app)
@@ -123,8 +127,8 @@ func StartApp(db *gorm.DB) gin.HandlerFunc {
 		services.LogAppAction(db, c, "start_app", app, &duration)
 
 		timerEndsAt := int64(0)
-		if app.AutoStopTimeout > 0 {
-			timerEndsAt = time.Now().Add(time.Duration(app.AutoStopTimeout) * time.Minute).Unix()
+		if app.TimerEndsAt != nil {
+			timerEndsAt = *app.TimerEndsAt
 		}
 
 		c.JSON(http.StatusOK, gin.H{
@@ -166,6 +170,7 @@ func StopApp(db *gorm.DB) gin.HandlerFunc {
 
 		app.Status = "stopped"
 		app.StartedAt = nil
+		app.TimerEndsAt = nil
 		db.Save(&app)
 
 		// Log the action

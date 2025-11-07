@@ -10,6 +10,7 @@ import (
 	"backend/migrations"
 	"backend/models"
 	"backend/router"
+	"backend/services"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
@@ -52,6 +53,13 @@ func main() {
 	if err := migrations.CreateDefaultUsers(db); err != nil {
 		log.Fatalf("Failed to run migrations: %v", err)
 	}
+	
+	if err := migrations.AddTimerEndsAtColumn(db); err != nil {
+		log.Fatalf("Failed to add timer_ends_at column: %v", err)
+	}
+
+	// Start background timer service for auto-stopping apps
+	services.StartTimerService(db)
 
 	// Set Gin to production mode in production
 	if os.Getenv("GIN_MODE") == "release" {
