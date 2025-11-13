@@ -101,26 +101,6 @@ export function LoginPage({ onLogin }: LoginPageProps) {
                 'Sign In'
               )}
             </Button>
-
-            <div className="mt-6 p-4 bg-secondary rounded-lg border-2 border-black/10">
-              <p className="text-xs text-muted-foreground text-center mb-3">
-                Demo Credentials:
-              </p>
-              <div className="space-y-2 text-xs">
-                <div className="flex justify-between items-center p-2 bg-white rounded border border-black/5">
-                  <span><strong>admin</strong> / admin123</span>
-                  <span className="text-muted-foreground">(Admin)</span>
-                </div>
-                <div className="flex justify-between items-center p-2 bg-white rounded border border-black/5">
-                  <span><strong>devops</strong> / devops123</span>
-                  <span className="text-muted-foreground">(User)</span>
-                </div>
-                <div className="flex justify-between items-center p-2 bg-white rounded border border-black/5">
-                  <span><strong>user</strong> / user123</span>
-                  <span className="text-muted-foreground">(User)</span>
-                </div>
-              </div>
-            </div>
           </form>
         </CardContent>
       </Card>
