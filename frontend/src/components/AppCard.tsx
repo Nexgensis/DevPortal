@@ -331,22 +331,21 @@ export function AppCard({ app, server, project, onUpdateApp, onStartApp, onStopA
         {isAdmin && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                className="h-12 w-12 rounded-lg hover:bg-gray-100 border-2 border-transparent hover:border-gray-300"
+              <button
+                className="h-12 w-12 rounded-lg hover:bg-gray-100 border-2 border-transparent hover:border-gray-300 flex items-center justify-center transition-all"
+                onClick={(e) => e.stopPropagation()}
               >
                 <MoreVertical className="h-5 w-5" />
-              </Button>
+              </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent
               align="end"
-              className="w-48 z-50 bg-white"
-              onPointerDownOutside={(e) => e.stopPropagation()}
-              onInteractOutside={(e) => e.stopPropagation()}
+              className="w-48 z-[100] bg-white shadow-lg border-2"
             >
               <DropdownMenuItem
-                className="cursor-pointer"
-                onSelect={() => {
+                className="cursor-pointer hover:bg-gray-100"
+                onSelect={(e) => {
+                  e.preventDefault();
                   onEditApp(app);
                 }}
               >
@@ -355,8 +354,9 @@ export function AppCard({ app, server, project, onUpdateApp, onStartApp, onStopA
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem
-                className="cursor-pointer"
-                onSelect={() => {
+                className="cursor-pointer hover:bg-gray-100"
+                onSelect={(e) => {
+                  e.preventDefault();
                   const url = formatDomain(app.domain);
                   window.open(url, '_blank');
                 }}

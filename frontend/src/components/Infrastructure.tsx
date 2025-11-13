@@ -121,16 +121,20 @@ export function Infrastructure({
                   </div>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-9 w-9 rounded-lg hover:bg-secondary border-2 border-transparent hover:border-black/10 flex-shrink-0"
+                      <button
+                        className="h-9 w-9 rounded-lg hover:bg-gray-100 border-2 border-transparent hover:border-gray-300 flex items-center justify-center transition-all flex-shrink-0"
                       >
                         <MoreVertical className="h-4 w-4" />
-                      </Button>
+                      </button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="border-2 border-black/10">
-                      <DropdownMenuItem onClick={() => handleEditServer(server)}>
+                    <DropdownMenuContent align="end" className="w-48 z-[100] bg-white shadow-lg border-2">
+                      <DropdownMenuItem 
+                        className="cursor-pointer hover:bg-gray-100"
+                        onSelect={(e) => {
+                          e.preventDefault();
+                          handleEditServer(server);
+                        }}
+                      >
                         <Settings className="h-4 w-4 mr-2" />
                         Edit Server
                       </DropdownMenuItem>
@@ -189,16 +193,20 @@ export function Infrastructure({
                   </div>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-9 w-9 rounded-lg hover:bg-secondary border-2 border-transparent hover:border-black/10 flex-shrink-0"
+                      <button
+                        className="h-9 w-9 rounded-lg hover:bg-gray-100 border-2 border-transparent hover:border-gray-300 flex items-center justify-center transition-all flex-shrink-0"
                       >
                         <MoreVertical className="h-4 w-4" />
-                      </Button>
+                      </button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="border-2 border-black/10">
-                      <DropdownMenuItem onClick={() => handleEditProject(project)}>
+                    <DropdownMenuContent align="end" className="w-48 z-[100] bg-white shadow-lg border-2">
+                      <DropdownMenuItem 
+                        className="cursor-pointer hover:bg-gray-100"
+                        onSelect={(e) => {
+                          e.preventDefault();
+                          handleEditProject(project);
+                        }}
+                      >
                         <Settings className="h-4 w-4 mr-2" />
                         Edit Project
                       </DropdownMenuItem>
