@@ -38,6 +38,7 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
     auth.GET("/apps", controllers.ListApps(db))
     auth.POST("/apps/:id/start", controllers.StartApp(db))
     auth.POST("/apps/:id/stop", controllers.StopApp(db))
+    auth.PUT("/apps/:id", controllers.UpdateApp(db)) // Allow users to update app settings (e.g., runtime)
     
     // User can view their own audit logs
     auth.GET("/audit-logs", controllers.GetAuditLogs(db))
@@ -55,7 +56,6 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
     admin.DELETE("/projects/:id", controllers.DeleteProject(db))
 
     admin.POST("/apps", controllers.CreateApp(db))
-    admin.PUT("/apps/:id", controllers.UpdateApp(db))
     admin.DELETE("/apps/:id", controllers.DeleteApp(db))
 
     // User management (admin only)

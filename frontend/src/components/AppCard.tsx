@@ -130,15 +130,15 @@ export function AppCard({ app, server, project, onUpdateApp, onStartApp, onStopA
 
   const handleUpdateTimeout = async () => {
     const timeout = parseInt(newTimeout);
-    if (isNaN(timeout) || timeout <= 0) {
-      toast.error('Timeout must be a positive number');
+    if (isNaN(timeout) || timeout < 0) {
+      toast.error('Invalid timeout value');
       return;
     }
 
     try {
       await onUpdateApp(app.id, { autoStopTimeout: timeout });
       setIsEditingTimeout(false);
-      toast.success('Runtime updated');
+      toast.success(timeout === 0 ? 'Runtime set to infinite' : 'Runtime updated');
     } catch (error) {
       toast.error('Failed to update runtime');
     }
@@ -150,6 +150,7 @@ export function AppCard({ app, server, project, onUpdateApp, onStartApp, onStopA
   };
 
   const formatRunTime = (minutes: number) => {
+    if (minutes === 0) return 'Infinite';
     const hours = Math.floor(minutes / 60);
     const mins = minutes % 60;
     if (hours > 0) {
@@ -201,15 +202,26 @@ export function AppCard({ app, server, project, onUpdateApp, onStartApp, onStopA
           <Clock className="h-4 w-4" />
           {isEditingTimeout ? (
             <div className="flex items-center gap-2">
-              <input
-                type="number"
-                min="1"
+              <select
                 value={newTimeout}
                 onChange={(e) => setNewTimeout(e.target.value)}
-                className="w-16 h-7 px-2 border border-gray-300 rounded text-sm"
+                className="h-7 px-2 border border-gray-300 rounded text-sm"
                 onClick={(e) => e.stopPropagation()}
-              />
-              <span>min</span>
+              >
+                <option value="5">5 min</option>
+                <option value="10">10 min</option>
+                <option value="15">15 min</option>
+                <option value="30">30 min</option>
+                <option value="60">1 hour</option>
+                <option value="120">2 hours</option>
+                <option value="180">3 hours</option>
+                <option value="240">4 hours</option>
+                <option value="360">6 hours</option>
+                <option value="480">8 hours</option>
+                <option value="720">12 hours</option>
+                <option value="1440">24 hours</option>
+                <option value="0">Infinite</option>
+              </select>
               <button
                 onClick={(e) => {
                   e.stopPropagation();

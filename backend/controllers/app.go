@@ -60,7 +60,40 @@ func UpdateApp(db *gorm.DB) gin.HandlerFunc {
 			return
 		}
 
-		db.Model(&app).Updates(input)
+		// Check if we're updating the autoStopTimeout
+		isUpdatingTimeout := input.AutoStopTimeout != app.AutoStopTimeout
+		
+		// If updating autoStopTimeout and app is running, recalculate timerEndsAt
+		if app.Status == "running" && app.StartedAt != nil && isUpdatingTimeout {
+			if input.AutoStopTimeout > 0 {
+				// Calculate new timer end time from NOW (not from start time)
+				timerEnd := time.Now().Add(time.Duration(input.AutoStopTimeout) * time.Minute).UnixMilli()
+				app.TimerEndsAt = &timerEnd
+				app.AutoStopTimeout = input.AutoStopTimeout
+				
+				// Save the updated timer
+				db.Model(&app).Updates(map[string]interface{}{
+					"timer_ends_at": timerEnd,
+					"auto_stop_mins": input.AutoStopTimeout,
+				})
+			} else if input.AutoStopTimeout == 0 {
+				// Infinite runtime (0)
+				app.TimerEndsAt = nil
+				app.AutoStopTimeout = 0
+				
+				// Save the updated timer (use gorm.Expr to set NULL)
+				db.Model(&app).Updates(map[string]interface{}{
+					"timer_ends_at": gorm.Expr("NULL"),
+					"auto_stop_mins": 0,
+				})
+			}
+		} else {
+			// For stopped apps or other updates, just update normally
+			db.Model(&app).Updates(input)
+		}
+		
+		// Reload the app to get all updated values
+		db.First(&app, "id = ?", id)
 		c.JSON(http.StatusOK, app)
 	}
 }
