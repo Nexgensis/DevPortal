@@ -35,16 +35,16 @@ export function LoginPage({ onLogin }: LoginPageProps) {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4">
-      <Card className="w-full max-w-md bg-white rounded-3xl shadow-[0_8px_40px_rgba(0,0,0,0.12)] border-0">
+    <div className="min-h-screen flex items-center justify-center p-4 bg-white">
+      <Card className="w-full max-w-md bento-card">
         <CardHeader className="space-y-6 pt-12">
           <div className="flex justify-center">
-            <div className="h-20 w-20 rounded-3xl bg-primary flex items-center justify-center shadow-lg">
-              <Activity className="h-10 w-10 text-white" />
+            <div className="h-20 w-20 rounded-xl bg-accent border-3 border-black flex items-center justify-center">
+              <Activity className="h-10 w-10 text-black" />
             </div>
           </div>
           <div className="text-center space-y-2">
-            <CardTitle className="text-3xl">DevOps Dashboard</CardTitle>
+            <CardTitle>DevOps Dashboard</CardTitle>
             <CardDescription>
               Sign in to manage your applications
             </CardDescription>
@@ -53,7 +53,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
         <CardContent className="pb-12">
           <form onSubmit={handleSubmit} className="space-y-5">
             {error && (
-              <Alert variant="destructive" className="rounded-2xl border-0 bg-red-50">
+              <Alert variant="destructive" className="rounded-lg border-2 border-[#EF4444] bg-[#EF4444]/10">
                 <AlertCircle className="h-4 w-4" />
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
@@ -69,7 +69,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
                 placeholder="Enter your username"
                 required
                 autoComplete="username"
-                className="rounded-2xl h-12 bg-secondary border-0"
+                className="rounded-lg h-12 bg-secondary border-2 border-black/10 focus:border-black"
               />
             </div>
             
@@ -83,13 +83,13 @@ export function LoginPage({ onLogin }: LoginPageProps) {
                 placeholder="Enter your password"
                 required
                 autoComplete="current-password"
-                className="rounded-2xl h-12 bg-secondary border-0"
+                className="rounded-lg h-12 bg-secondary border-2 border-black/10 focus:border-black"
               />
             </div>
 
             <Button
               type="submit"
-              className="w-full bg-accent hover:bg-accent/90 text-accent-foreground rounded-full h-12 mt-6"
+              className="w-full bg-accent hover:bg-accent/90 text-accent-foreground border-2 border-black rounded-lg h-12 mt-6"
               disabled={isLoading}
             >
               {isLoading ? (
@@ -102,22 +102,25 @@ export function LoginPage({ onLogin }: LoginPageProps) {
               )}
             </Button>
 
-            {/* <div className="mt-4 p-3 bg-slate-100 dark:bg-slate-800 rounded-md">
-              <p className="text-muted-foreground text-center">
-                Demo credentials:
+            <div className="mt-6 p-4 bg-secondary rounded-lg border-2 border-black/10">
+              <p className="text-xs text-muted-foreground text-center mb-3">
+                Demo Credentials:
               </p>
-              <div className="mt-2 space-y-1 text-center">
-                <p className="text-slate-700 dark:text-slate-300">
-                  <strong>admin</strong> / admin123 (Admin)
-                </p>
-                <p className="text-slate-700 dark:text-slate-300">
-                  <strong>devops</strong> / devops123 (User)
-                </p>
-                <p className="text-slate-700 dark:text-slate-300">
-                  <strong>user</strong> / user123 (User)
-                </p>
+              <div className="space-y-2 text-xs">
+                <div className="flex justify-between items-center p-2 bg-white rounded border border-black/5">
+                  <span><strong>admin</strong> / admin123</span>
+                  <span className="text-muted-foreground">(Admin)</span>
+                </div>
+                <div className="flex justify-between items-center p-2 bg-white rounded border border-black/5">
+                  <span><strong>devops</strong> / devops123</span>
+                  <span className="text-muted-foreground">(User)</span>
+                </div>
+                <div className="flex justify-between items-center p-2 bg-white rounded border border-black/5">
+                  <span><strong>user</strong> / user123</span>
+                  <span className="text-muted-foreground">(User)</span>
+                </div>
               </div>
-            </div> */}
+            </div>
           </form>
         </CardContent>
       </Card>
