@@ -6,7 +6,9 @@ import { Alert, AlertDescription } from './ui/alert';
 import { Activity, Loader2, AlertCircle } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 
-const API_BASE = 'http://localhost:10000/api';
+const API_BASE = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_URL)
+  ? `${import.meta.env.VITE_API_URL}/api`
+  : '/api';
 
 interface LoginPageProps {
   onLogin: (credentials: { username: string; password: string }) => Promise<boolean>;

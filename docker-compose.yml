@@ -27,10 +27,18 @@ services:
       PORT: 8080
       JWT_SECRET: "r2dhNc6ePdPQBeZc5yMULGNF3/pC8ACWdMX7tkZPOiU="
       ENCRYPTION_KEY: "12345678901234567890123456789012"
+      GIN_MODE: debug
+      SSO_ENABLED: "true"
+      MICROSOFT_CLIENT_ID: dcf16509-91a6-43a0-b0b2-85fe33d7a43f
+      MICROSOFT_TENANT_ID: e37bae5a-2850-45a2-9ed0-a198cb1388fd
+      MICROSOFT_CLIENT_SECRET: G9x8Q~5k2DR_pEsNgAr2sQT0Qy5SaHJeqTNVAaQ~
+      MICROSOFT_REDIRECT_URI: https://portal.nexgensis.com/api/auth/microsoft/callback
+      FRONTEND_URL: https://portal.nexgensis.com
+      SSO_AUTO_CREATE_USERS: "true"
+      SSO_DEFAULT_ROLE: user
+      SSO_ADMIN_EMAILS: sourav.kumar@nexgensis.com
     ports:
       - "8080:8080"
-    env_file:
-      - ./backend/.env
     restart: unless-stopped
 
   frontend:

@@ -2,7 +2,9 @@ import { useState } from 'react';
 import { PostgresContainer, PostgresDatabase, PostgresDumpRequest } from '../types/postgres';
 import { toast } from 'sonner';
 
-const API_BASE = 'http://localhost:10000/api';
+const API_BASE = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_URL)
+  ? `${import.meta.env.VITE_API_URL}/api`
+  : '/api';
 
 export const usePostgres = () => {
   const [loading, setLoading] = useState(false);
