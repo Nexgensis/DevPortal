@@ -3,12 +3,13 @@ import { Button } from './ui/button';
 import { Server, Project } from '../types/app';
 import { ServerManagementDialog } from './ServerManagementDialog';
 import { ProjectManagementDialog } from './ProjectManagementDialog';
-import { Server as ServerIcon, FolderKanban, Plus, MoreVertical, Settings } from 'lucide-react';
+import { Server as ServerIcon, FolderKanban, Plus, MoreVertical, Settings, Database } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
 } from './ui/dropdown-menu';
 
 interface InfrastructureProps {
@@ -20,6 +21,7 @@ interface InfrastructureProps {
   onAddProject: (project: Omit<Project, 'id' | 'createdAt'>) => Promise<Project>;
   onUpdateProject: (id: string, updates: Partial<Project>) => Promise<Project>;
   onDeleteProject: (id: string) => Promise<void>;
+  onPostgresBackup: (server: Server) => void;
 }
 
 export function Infrastructure({
@@ -31,6 +33,7 @@ export function Infrastructure({
   onAddProject,
   onUpdateProject,
   onDeleteProject,
+  onPostgresBackup,
 }: InfrastructureProps) {
   const [serverDialogOpen, setServerDialogOpen] = useState(false);
   const [projectDialogOpen, setProjectDialogOpen] = useState(false);
@@ -72,15 +75,15 @@ export function Infrastructure({
                 Manage SSH connections to your servers
               </p>
             </div>
-            <Button 
-              onClick={handleAddServer} 
+            <Button
+              onClick={handleAddServer}
               className="bg-accent hover:bg-accent/90 text-accent-foreground border-2 border-black rounded-lg h-11 px-6"
             >
               <Plus className="h-4 w-4 mr-2" />
               Add Server
             </Button>
           </div>
-          
+
           {servers.length === 0 ? (
             <div className="text-center py-12 px-4 bg-secondary/30 rounded-xl border-2 border-dashed border-black/10">
               <div className="h-20 w-20 rounded-xl bg-white border-2 border-black/10 flex items-center justify-center mx-auto mb-4">
@@ -100,19 +103,17 @@ export function Infrastructure({
                   className="flex items-center gap-4 p-4 bg-white rounded-lg hover:bg-secondary/30 transition-all border-2 border-black/5 hover:border-black/10"
                 >
                   <div
-                    className={`h-2.5 w-2.5 rounded-full flex-shrink-0 ${
-                      server.status === 'online' ? 'bg-[#22C55E]' : 'bg-[#EF4444]'
-                    }`}
+                    className={`h-2.5 w-2.5 rounded-full flex-shrink-0 ${server.status === 'online' ? 'bg-[#22C55E]' : 'bg-[#EF4444]'
+                      }`}
                   />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-0.5">
                       <span className="truncate">{server.name}</span>
                       <span
-                        className={`text-xs px-2 py-0.5 rounded-full flex-shrink-0 ${
-                          server.status === 'online'
-                            ? 'bg-[#22C55E]/10 text-[#22C55E]'
-                            : 'bg-[#EF4444]/10 text-[#EF4444]'
-                        }`}
+                        className={`text-xs px-2 py-0.5 rounded-full flex-shrink-0 ${server.status === 'online'
+                          ? 'bg-[#22C55E]/10 text-[#22C55E]'
+                          : 'bg-[#EF4444]/10 text-[#EF4444]'
+                          }`}
                       >
                         {server.status}
                       </span>
@@ -128,7 +129,7 @@ export function Infrastructure({
                       </button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-48 z-[100] bg-white shadow-lg border-2">
-                      <DropdownMenuItem 
+                      <DropdownMenuItem
                         className="cursor-pointer hover:bg-gray-100"
                         onSelect={(e) => {
                           e.preventDefault();
@@ -137,6 +138,17 @@ export function Infrastructure({
                       >
                         <Settings className="h-4 w-4 mr-2" />
                         Edit Server
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        className="cursor-pointer hover:bg-gray-100"
+                        onSelect={(e) => {
+                          e.preventDefault();
+                          onPostgresBackup(server);
+                        }}
+                      >
+                        <Database className="h-4 w-4 mr-2" />
+                        Database Dump
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
@@ -158,15 +170,15 @@ export function Infrastructure({
                 Group applications into logical projects
               </p>
             </div>
-            <Button 
-              onClick={handleAddProject} 
+            <Button
+              onClick={handleAddProject}
               className="bg-accent hover:bg-accent/90 text-accent-foreground border-2 border-black rounded-lg h-11 px-6"
             >
               <Plus className="h-4 w-4 mr-2" />
               Add Project
             </Button>
           </div>
-          
+
           {projects.length === 0 ? (
             <div className="text-center py-12 px-4 bg-secondary/30 rounded-xl border-2 border-dashed border-black/10">
               <div className="h-20 w-20 rounded-xl bg-white border-2 border-black/10 flex items-center justify-center mx-auto mb-4">
@@ -200,7 +212,7 @@ export function Infrastructure({
                       </button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-48 z-[100] bg-white shadow-lg border-2">
-                      <DropdownMenuItem 
+                      <DropdownMenuItem
                         className="cursor-pointer hover:bg-gray-100"
                         onSelect={(e) => {
                           e.preventDefault();

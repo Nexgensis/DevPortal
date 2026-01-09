@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { Input } from './ui/input';
-import { Play, Square, Loader2, Clock, Settings, Edit2, Check, X, ExternalLink, Server as ServerIcon, Globe, MoreVertical } from 'lucide-react';
+import { Play, Square, Loader2, Clock, Settings, Edit2, Check, X, ExternalLink, Server as ServerIcon, Globe, MoreVertical, Database } from 'lucide-react';
 import { App, Server, Project } from '../types/app';
 import { executeDockerCompose } from '../lib/serverApi';
 import { toast } from 'sonner@2.0.3';
@@ -22,10 +22,11 @@ interface AppCardProps {
   onStartApp: (id: string, timeoutMinutes: number) => Promise<any>;
   onStopApp: (id: string) => Promise<any>;
   onEditApp: (app: App) => void;
+  onPostgresBackup: (server: Server) => void;
   isAdmin: boolean;
 }
 
-export function AppCard({ app, server, project, onUpdateApp, onStartApp, onStopApp, onEditApp, isAdmin }: AppCardProps) {
+export function AppCard({ app, server, project, onUpdateApp, onStartApp, onStopApp, onEditApp, onPostgresBackup, isAdmin }: AppCardProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
   const [isEditingTimeout, setIsEditingTimeout] = useState(false);
@@ -351,6 +352,18 @@ export function AppCard({ app, server, project, onUpdateApp, onStartApp, onStopA
               >
                 <Settings className="h-4 w-4 mr-2" />
                 Edit Application
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                className="cursor-pointer hover:bg-gray-100"
+                onSelect={(e) => {
+                  e.preventDefault();
+                  if (server) onPostgresBackup(server);
+                }}
+                disabled={!server || server.status !== 'online'}
+              >
+                <Database className="h-4 w-4 mr-2" />
+                Database Dump
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem

@@ -41,7 +41,7 @@ export function AuditLogs() {
       setTotal(result.total || 0);
     } catch (error) {
       console.error('Failed to load audit logs:', error);
-      // Don't show error toast for mock API
+      toast.error('Failed to load audit logs');
       setLogs([]);
       setTotal(0);
     } finally {
@@ -92,6 +92,10 @@ export function AuditLogs() {
     return null;
   };
 
+  const filteredLogs = logs.filter(log =>
+    log.username.toLowerCase().includes(filters.username.toLowerCase())
+  );
+
   const totalPages = Math.ceil(total / pageSize);
 
   return (
@@ -106,9 +110,9 @@ export function AuditLogs() {
             Track all system activities and changes
           </p>
         </div>
-        <Button 
-          variant="outline" 
-          onClick={loadLogs} 
+        <Button
+          variant="outline"
+          onClick={loadLogs}
           disabled={isLoading}
           className="border-2 border-black rounded-lg h-11"
         >
@@ -161,7 +165,7 @@ export function AuditLogs() {
         </div>
       ) : (
         <div className="space-y-2">
-          {logs.map((log) => (
+          {filteredLogs.map((log) => (
             <div
               key={log.id}
               className="flex items-center justify-between gap-4 p-4 bg-white rounded-lg hover:bg-secondary/30 transition-all border-2 border-black/5 hover:border-black/10"
@@ -201,18 +205,15 @@ export function AuditLogs() {
             </div>
           ))}
 
-          {logs.length === 0 && !isLoading && (
+          {filteredLogs.length === 0 && !isLoading && (
             <div className="text-center py-16 px-4 bg-secondary/30 rounded-xl border-2 border-dashed border-black/10">
               <div className="h-24 w-24 rounded-xl bg-white border-2 border-black/10 flex items-center justify-center mx-auto mb-4">
                 <FileText className="h-12 w-12 text-muted-foreground/60" />
               </div>
               <h3 className="mb-2">No Audit Logs Available</h3>
               <p className="text-muted-foreground mb-4 max-w-md mx-auto">
-                Audit logs require backend integration. All actions (app starts/stops, configuration changes) will be logged here once connected to your backend API.
+                No logs found matching your filters.
               </p>
-              <div className="text-sm text-muted-foreground bg-white rounded-xl p-4 max-w-lg mx-auto border-2 border-black/5">
-                <strong>Backend Setup Required:</strong> Configure your backend to send audit events to this dashboard. See the documentation for integration details.
-              </div>
             </div>
           )}
         </div>

@@ -28,11 +28,29 @@ func Encrypt(text string) (string, error) {
 
 func Decrypt(cryptoText string) (string, error) {
     key := []byte(os.Getenv("ENCRYPTION_KEY"))
-    ciphertext, _ := base64.URLEncoding.DecodeString(cryptoText)
+    
+    // If no encryption key is set or key is empty, return the text as-is (backward compatibility)
+    if len(key) == 0 {
+        return cryptoText, nil
+    }
+    
+    ciphertext, err := base64.URLEncoding.DecodeString(cryptoText)
+    if err != nil {
+        // If base64 decode fails, assume it's plain text (backward compatibility)
+        return cryptoText, nil
+    }
+    
     block, err := aes.NewCipher(key)
     if err != nil {
         return "", err
     }
+    
+    // Check if ciphertext is long enough
+    if len(ciphertext) < aes.BlockSize {
+        // Assume it's plain text (backward compatibility)
+        return cryptoText, nil
+    }
+    
     iv := ciphertext[:aes.BlockSize]
     ciphertext = ciphertext[aes.BlockSize:]
     stream := cipher.NewCFBDecrypter(block, iv)

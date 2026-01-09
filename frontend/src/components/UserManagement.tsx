@@ -7,8 +7,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog';
 import { Users, Plus, Edit, Trash2, Shield, Mail, User as UserIcon, MoreVertical } from 'lucide-react';
 import { User } from '../types/app';
-import { userApi } from '../lib/api';
 import { toast } from 'sonner';
+import { userApi } from '../lib/api';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -40,7 +40,7 @@ export function UserManagement() {
       setUsers(userList);
     } catch (error) {
       console.error('Failed to load users:', error);
-      // Don't show error toast for mock API
+      toast.error('Failed to load users');
       setUsers([]);
     } finally {
       setIsLoading(false);
@@ -51,20 +51,27 @@ export function UserManagement() {
     e.preventDefault();
     try {
       if (editingUser) {
-        await userApi.update(editingUser.id, {
+        const updatedUser = await userApi.update(editingUser.id, {
           username: formData.username,
           email: formData.email,
           fullName: formData.fullName || '',
           role: formData.role as 'admin' | 'user',
         });
+        setUsers(users.map(u => u.id === editingUser.id ? updatedUser : u));
         toast.success('User updated successfully');
       } else {
-        await userApi.create(formData);
+        const newUser = await userApi.create({
+          username: formData.username,
+          email: formData.email,
+          fullName: formData.fullName || '',
+          password: formData.password,
+          role: formData.role as 'admin' | 'user',
+        });
+        setUsers([...users, newUser]);
         toast.success('User created successfully');
       }
       setDialogOpen(false);
       resetForm();
-      loadUsers();
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       toast.error(errorMessage);
@@ -87,8 +94,8 @@ export function UserManagement() {
     if (confirm(`Are you sure you want to delete user "${user.username}"?`)) {
       try {
         await userApi.delete(user.id);
+        setUsers(users.filter(u => u.id !== user.id));
         toast.success('User deleted successfully');
-        loadUsers();
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         toast.error(errorMessage);
@@ -126,7 +133,7 @@ export function UserManagement() {
         </div>
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
-            <Button 
+            <Button
               onClick={handleAddUser}
               className="bg-accent hover:bg-accent/90 text-accent-foreground border-2 border-black rounded-lg h-11 px-6"
             >
@@ -197,15 +204,15 @@ export function UserManagement() {
                 </Select>
               </div>
               <div className="flex gap-2">
-                <Button 
+                <Button
                   type="submit"
                   className="bg-accent hover:bg-accent/90 text-accent-foreground border-2 border-black rounded-lg"
                 >
                   {editingUser ? 'Update' : 'Create'}
                 </Button>
-                <Button 
-                  type="button" 
-                  variant="outline" 
+                <Button
+                  type="button"
+                  variant="outline"
                   onClick={() => setDialogOpen(false)}
                   className="border-2 border-black rounded-lg"
                 >
@@ -228,11 +235,8 @@ export function UserManagement() {
           </div>
           <h3 className="mb-2">No Users Available</h3>
           <p className="text-muted-foreground mb-4 max-w-md mx-auto">
-            User management requires backend integration. Connect your authentication system to manage users and their access permissions.
+            Click "Add User" to create your first user.
           </p>
-          <div className="text-sm text-muted-foreground bg-white rounded-xl p-4 max-w-lg mx-auto border-2 border-black/5">
-            <strong>Backend Setup Required:</strong> Configure your authentication backend with the API endpoints for user CRUD operations. Currently using local authentication only.
-          </div>
         </div>
       ) : (
         <div className="space-y-2">
@@ -245,7 +249,7 @@ export function UserManagement() {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-0.5">
                   <span className="truncate">{user.username}</span>
-                  <Badge 
+                  <Badge
                     variant={user.role === 'admin' ? 'default' : 'secondary'}
                     className={user.role === 'admin' ? 'bg-black text-white' : ''}
                   >
@@ -271,7 +275,7 @@ export function UserManagement() {
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-48 z-[100] bg-white shadow-lg border-2">
-                  <DropdownMenuItem 
+                  <DropdownMenuItem
                     className="cursor-pointer hover:bg-gray-100"
                     onSelect={(e) => {
                       e.preventDefault();
@@ -281,7 +285,7 @@ export function UserManagement() {
                     <Edit className="h-4 w-4 mr-2" />
                     Edit User
                   </DropdownMenuItem>
-                  <DropdownMenuItem 
+                  <DropdownMenuItem
                     className="cursor-pointer hover:bg-red-50 text-destructive"
                     onSelect={(e) => {
                       e.preventDefault();

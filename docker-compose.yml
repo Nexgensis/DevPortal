@@ -11,7 +11,7 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d runapp"]
+      test: [ "CMD-SHELL", "pg_isready -U postgres -d runapp" ]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -26,8 +26,11 @@ services:
       DB_DSN: "postgres://postgres:runapp@postgres:5432/runapp?sslmode=disable"
       PORT: 8080
       JWT_SECRET: "r2dhNc6ePdPQBeZc5yMULGNF3/pC8ACWdMX7tkZPOiU="
+      ENCRYPTION_KEY: "12345678901234567890123456789012"
     ports:
       - "8080:8080"
+    env_file:
+      - ./backend/.env
     restart: unless-stopped
 
   frontend:

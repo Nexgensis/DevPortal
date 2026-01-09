@@ -15,18 +15,18 @@ export function useApps() {
       const auth = localStorage.getItem('devops-dashboard-auth');
       setIsAuthenticated(!!auth);
     };
-    
+
     checkAuth();
-    
+
     // Listen for storage changes (login/logout in other tabs)
     window.addEventListener('storage', checkAuth);
-    
+
     // Listen for login event
     const handleLogin = () => {
       checkAuth();
     };
     window.addEventListener('auth-login', handleLogin);
-    
+
     return () => {
       window.removeEventListener('storage', checkAuth);
       window.removeEventListener('auth-login', handleLogin);
@@ -38,7 +38,7 @@ export function useApps() {
       setIsLoading(false);
       return;
     }
-    
+
     try {
       setIsLoading(true);
       setError(null);
@@ -47,7 +47,7 @@ export function useApps() {
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to load apps';
       setError(errorMessage);
-      toast.error(errorMessage);
+      console.error('Failed to load apps:', err);
     } finally {
       setIsLoading(false);
     }
@@ -60,11 +60,11 @@ export function useApps() {
   // Periodic refresh to sync app states (especially timers)
   useEffect(() => {
     if (!isAuthenticated) return;
-    
+
     const interval = setInterval(() => {
       loadApps();
     }, 30000); // Refresh every 30 seconds
-    
+
     return () => clearInterval(interval);
   }, [isAuthenticated]);
 
@@ -109,16 +109,19 @@ export function useApps() {
   const startApp = async (id: string, timeoutMinutes: number = 60) => {
     try {
       const result = await appApi.start(id, timeoutMinutes);
-      setApps(prev => prev.map(app => 
-        app.id === id 
-          ? { 
-              ...app, 
-              status: 'running', 
-              startedAt: Date.now(),
-              timerEndsAt: result.timer_ends_at || null
-            }
+
+      // Update app state with timer info
+      setApps(prev => prev.map(app =>
+        app.id === id
+          ? {
+            ...app,
+            status: 'running' as const,
+            startedAt: Date.now(),
+            timerEndsAt: result.timer_ends_at
+          }
           : app
       ));
+
       toast.success(result.message);
       return result;
     } catch (err) {
@@ -131,11 +134,13 @@ export function useApps() {
   const stopApp = async (id: string) => {
     try {
       const result = await appApi.stop(id);
-      setApps(prev => prev.map(app => 
-        app.id === id 
-          ? { ...app, status: 'stopped', startedAt: undefined, timerEndsAt: null }
+
+      setApps(prev => prev.map(app =>
+        app.id === id
+          ? { ...app, status: 'stopped' as const, startedAt: undefined, timerEndsAt: null }
           : app
       ));
+
       toast.success(result.message);
       return result;
     } catch (err) {

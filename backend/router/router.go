@@ -23,6 +23,10 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
     // Public auth routes (login - no JWT required)
     r.POST("/api/auth/login", controllers.Login(db))
     r.POST("/api/auth/register", controllers.Register(db))
+    
+    // SSO routes
+    r.GET("/api/auth/microsoft", controllers.MicrosoftLogin(db))
+    r.GET("/api/auth/microsoft/callback", controllers.MicrosoftCallback(db))
 
     // Routes requiring any authenticated user
     auth := r.Group("/api")
@@ -42,6 +46,12 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
     
     // User can view their own audit logs
     auth.GET("/audit-logs", controllers.GetAuditLogs(db))
+    
+    // PostgreSQL routes - available to all authenticated users
+    auth.GET("/servers/:id/postgres/containers", controllers.GetPostgresContainers(db))
+    auth.GET("/servers/:id/postgres/containers/:container_id/databases", controllers.GetPostgresDatabases(db))
+    auth.POST("/servers/:id/postgres/containers/:container_id/test", controllers.TestPostgresConnection(db))
+    auth.POST("/postgres/dump", controllers.CreatePostgresDump(db))
 
     // Admin routes - only admins can modify servers, projects, apps
     admin := auth.Group("/")

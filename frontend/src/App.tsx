@@ -10,25 +10,54 @@ import { Infrastructure } from './components/Infrastructure';
 import { UserManagement } from './components/UserManagement';
 import { AuditLogs } from './components/AuditLogs';
 import { LoginPage } from './components/LoginPage';
+import { AuthCallback } from './components/AuthCallback';
+import { PostgresManager } from './components/PostgresManager';
 import { Button } from './components/ui/button';
 import { Badge } from './components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './components/ui/tabs';
 import { Plus, Activity, FolderKanban, Search } from 'lucide-react';
 import { Input } from './components/ui/input';
-import { App, Project } from './types/app';
+import { App as AppType, Project, Server } from './types/app';
 import { Toaster } from './components/ui/sonner';
 
 export default function App() {
-  const { user, isLoading: authLoading, isAuthenticated, isAdmin, login, logout } = useAuth();
+  const { user, isLoading: authLoading, isAuthenticated, isAdmin, login, logout, setAuthToken } = useAuth();
   const { apps, addApp, updateApp, removeApp, startApp, stopApp, getAppsByProject, getAppsByServer, isLoading: appsLoading, error: appsError, reload: reloadApps } = useApps();
   const { servers, addServer, updateServer, removeServer, refreshAllServers, isLoading: serversLoading, error: serversError, reload: reloadServers } = useServers();
   const { projects, addProject, updateProject, removeProject, isLoading: projectsLoading, error: projectsError, reload: reloadProjects } = useProjects();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingApp, setEditingApp] = useState<App | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeView, setActiveView] = useState<'applications' | 'infrastructure' | 'users' | 'audit-logs'>('applications');
+  const [activeView, setActiveView] = useState<'applications' | 'infrastructure' | 'users' | 'audit-logs' | 'database-dump'>('applications');
   const [serverDialogTrigger, setServerDialogTrigger] = useState(0);
   const [projectDialogTrigger, setProjectDialogTrigger] = useState(0);
+
+
+  // Handle Microsoft SSO callback
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get('token');
+
+    if (token) {
+      const handleSSO = async () => {
+        const success = await setAuthToken(token);
+        if (success) {
+          // Remove token from URL
+          window.history.replaceState({}, document.title, window.location.pathname);
+        }
+      };
+      handleSSO();
+    }
+  }, [setAuthToken]);
+
+  // Check if we're on the auth callback route
+  const isAuthCallback = window.location.pathname.includes('/auth/callback') ||
+    new URLSearchParams(window.location.search).has('token');
+
+  // Show auth callback page if redirected from Microsoft
+  if (isAuthCallback && !isAuthenticated) {
+    return <AuthCallback onAuthSuccess={setAuthToken} />;
+  }
 
   // Show login page if not authenticated
   if (authLoading) {
@@ -51,9 +80,13 @@ export default function App() {
     setDialogOpen(true);
   };
 
-  const handleEditApp = (app: App) => {
+  const handleEditApp = (app: AppType) => {
     setEditingApp(app);
     setDialogOpen(true);
+  };
+
+  const handlePostgresBackup = (server: Server) => {
+    setActiveView('database-dump');
   };
 
   const handleNavigateToAdministration = () => {
@@ -73,16 +106,16 @@ export default function App() {
   // Group apps by project and filter by search
   const appsByProject = projects.reduce((acc, project) => {
     const projectApps = getAppsByProject(project.id);
-    
+
     // Filter apps by search query
     const filteredApps = searchQuery
       ? projectApps.filter(app =>
-          app.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          app.domain.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          project.name.toLowerCase().includes(searchQuery.toLowerCase())
-        )
+        app.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        app.domain.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        project.name.toLowerCase().includes(searchQuery.toLowerCase())
+      )
       : projectApps;
-    
+
     acc[project.id] = filteredApps;
     return acc;
   }, {} as Record<string, App[]>);
@@ -104,7 +137,7 @@ export default function App() {
       />
 
       {/* Main Content */}
-      <div className="flex-1 overflow-auto">
+      <div className="flex-1 min-w-0">
         <div className="p-8 max-w-[1600px] mx-auto">
           {/* Header */}
           <div className="mb-8 bento-card">
@@ -113,12 +146,14 @@ export default function App() {
                 <h1>
                   {activeView === 'applications' && 'Applications'}
                   {activeView === 'infrastructure' && 'Infrastructure'}
+                  {activeView === 'database-dump' && 'Database Dump'}
                   {activeView === 'users' && 'User Management'}
                   {activeView === 'audit-logs' && 'Audit Logs'}
                 </h1>
                 <p className="text-muted-foreground mt-1">
                   {activeView === 'applications' && 'Manage and monitor your Docker Compose applications'}
                   {activeView === 'infrastructure' && 'Manage servers, projects, and users'}
+                  {activeView === 'database-dump' && 'Dump and download PostgreSQL databases from containers'}
                   {activeView === 'users' && 'Manage users and their permissions'}
                   {activeView === 'audit-logs' && 'View and manage audit logs'}
                 </p>
@@ -163,8 +198,8 @@ export default function App() {
                       ? projects.length === 0
                         ? 'Create a project first to organize your applications.'
                         : servers.length === 0
-                        ? 'Add a server connection first to deploy your applications.'
-                        : 'Get started by adding your first Docker Compose application.'
+                          ? 'Add a server connection first to deploy your applications.'
+                          : 'Get started by adding your first Docker Compose application.'
                       : 'No applications have been configured yet. Contact your administrator.'}
                   </p>
                   {isAdmin && projects.length > 0 && servers.length > 0 && (
@@ -207,9 +242,9 @@ export default function App() {
                   {/* Project Tabs */}
                   <TabsList className="mb-8 flex-wrap h-auto bg-secondary rounded-lg p-2 border-2 border-black/10">
                     {visibleProjects.map((project) => (
-                      <TabsTrigger 
-                        key={project.id} 
-                        value={project.id} 
+                      <TabsTrigger
+                        key={project.id}
+                        value={project.id}
                         className="rounded-lg px-6 py-3 data-[state=active]:bg-accent data-[state=active]:border-2 data-[state=active]:border-black transition-all"
                       >
                         <span className="mr-2">{project.name}</span>
@@ -252,6 +287,7 @@ export default function App() {
                               onStartApp={startApp}
                               onStopApp={stopApp}
                               onEditApp={handleEditApp}
+                              onPostgresBackup={handlePostgresBackup}
                               isAdmin={isAdmin}
                             />
                           ))}
@@ -274,6 +310,7 @@ export default function App() {
               onAddProject={addProject}
               onUpdateProject={updateProject}
               onDeleteProject={removeProject}
+              onPostgresBackup={handlePostgresBackup}
             />
           )}
 
@@ -283,6 +320,10 @@ export default function App() {
 
           {activeView === 'audit-logs' && isAdmin && (
             <AuditLogs />
+          )}
+
+          {activeView === 'database-dump' && (
+            <PostgresManager />
           )}
         </div>
       </div>
@@ -300,6 +341,7 @@ export default function App() {
           onDelete={removeApp}
         />
       )}
+
 
       {/* Toast Notifications */}
       <Toaster />

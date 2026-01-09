@@ -15,18 +15,18 @@ export function useProjects() {
       const auth = localStorage.getItem('devops-dashboard-auth');
       setIsAuthenticated(!!auth);
     };
-    
+
     checkAuth();
-    
+
     // Listen for storage changes (login/logout in other tabs)
     window.addEventListener('storage', checkAuth);
-    
+
     // Listen for login event
     const handleLogin = () => {
       checkAuth();
     };
     window.addEventListener('auth-login', handleLogin);
-    
+
     return () => {
       window.removeEventListener('storage', checkAuth);
       window.removeEventListener('auth-login', handleLogin);
@@ -38,7 +38,7 @@ export function useProjects() {
       setIsLoading(false);
       return;
     }
-    
+
     try {
       setIsLoading(true);
       setError(null);
@@ -47,7 +47,7 @@ export function useProjects() {
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to load projects';
       setError(errorMessage);
-      toast.error(errorMessage);
+      console.error('Failed to load projects:', err);
     } finally {
       setIsLoading(false);
     }

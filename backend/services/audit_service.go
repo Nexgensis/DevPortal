@@ -75,3 +75,9 @@ func LogAppAction(db *gorm.DB, c *gin.Context, action string, app models.App, du
 
 	return LogAction(db, c, action, "app", app.ID, app.Name, details)
 }
+
+// LogAuthAction logs authentication-related actions
+func LogAuthAction(db *gorm.DB, c *gin.Context, action, username string) error {
+	details := fmt.Sprintf("User: %s", username)
+	return LogAction(db, c, action, "auth", "", username, details)
+}

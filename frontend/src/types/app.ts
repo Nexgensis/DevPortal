@@ -41,6 +41,8 @@ export interface AuthUser {
   username: string;
   role: UserRole;
   token: string; // JWT token
+  email?: string;
+  displayName?: string;
 }
 
 export interface LoginCredentials {
@@ -82,4 +84,23 @@ export interface AuditLog {
   resourceName: string;
   details: string;
   createdAt: number;
+}
+
+// PostgreSQL Types
+export interface PostgresContainer {
+  id: string;
+  name: string;
+  image: string;
+  status: string;
+  ports: string[];
+  labels?: Record<string, string>;
+  created: number;
+  serverId: string;
+}
+
+export interface PostgresDatabase {
+  name: string;
+  owner: string;
+  encoding: string;
+  size?: string;
 }

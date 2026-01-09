@@ -47,7 +47,7 @@ export function useServers() {
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to load servers';
       setError(errorMessage);
-      toast.error(errorMessage);
+      console.error('Failed to load servers:', err);
     } finally {
       setIsLoading(false);
     }
@@ -120,7 +120,7 @@ export function useServers() {
     try {
       const result = await serverApi.refreshAll();
       setServers(result.servers);
-      toast.success(result.message);
+      toast.success('All servers refreshed successfully');
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to refresh servers';
       toast.error(errorMessage);

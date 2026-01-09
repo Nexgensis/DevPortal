@@ -1,6 +1,8 @@
 import { Server, Project, App, AuthUser, LoginCredentials, User, AuditLog } from '../types/app';
 
-const API_BASE = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : '/api';
+const API_BASE = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_URL) 
+    ? `${import.meta.env.VITE_API_URL}/api` 
+    : '/api';
 
 // Helper function to get auth headers
 function getAuthHeaders(): HeadersInit {
@@ -282,5 +284,55 @@ export const auditApi = {
             headers: getAuthHeaders(),
         });
         return handleResponse(response);
+    },
+};
+
+// Postgres API
+export const postgresApi = {
+    async listContainers(serverId: string): Promise<{ containers: any[]; count: number }> {
+        const response = await fetch(`${API_BASE}/servers/${serverId}/postgres/containers`, {
+            headers: getAuthHeaders(),
+        });
+        return handleResponse(response);
+    },
+
+    async listDatabases(serverId: string, containerId: string): Promise<{ databases: any[]; count: number }> {
+        const response = await fetch(`${API_BASE}/servers/${serverId}/postgres/containers/${containerId}/databases`, {
+            headers: getAuthHeaders(),
+        });
+        return handleResponse(response);
+    },
+
+    async testConnection(serverId: string, containerId: string): Promise<{ status: string; message: string }> {
+        const response = await fetch(`${API_BASE}/servers/${serverId}/postgres/containers/${containerId}/test`, {
+            method: 'POST',
+            headers: getAuthHeaders(),
+        });
+        return handleResponse(response);
+    },
+
+    async createDump(request: {
+        server_id: string;
+        container_id: string;
+        database: string;
+        data_only?: boolean;
+        schema_only?: boolean;
+        tables?: string[];
+    }): Promise<Blob> {
+        const response = await fetch(`${API_BASE}/postgres/dump`, {
+            method: 'POST',
+            headers: {
+                ...getAuthHeaders(),
+                'Accept': 'application/sql',
+            } as any,
+            body: JSON.stringify(request),
+        });
+
+        if (!response.ok) {
+            const error = await response.json().catch(() => ({ error: 'Network error' }));
+            throw new Error(error.error || `HTTP ${response.status}`);
+        }
+
+        return response.blob();
     },
 };
