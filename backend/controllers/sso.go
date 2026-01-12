@@ -63,7 +63,12 @@ func MicrosoftLogin(db *gorm.DB) gin.HandlerFunc {
 
 		// Generate and store state
 		state := generateState()
-		c.SetCookie("oauth_state", state, 600, "/", "", false, true)
+		
+		// Set cookie securely if using HTTPS
+		frontendURL := os.Getenv("FRONTEND_URL")
+		secure := strings.HasPrefix(frontendURL, "https://")
+		
+		c.SetCookie("oauth_state", state, 600, "/", "", secure, true)
 
 		// Build authorization URL
 		authURL := fmt.Sprintf(microsoftAuthURL, tenantID)
@@ -88,13 +93,23 @@ func MicrosoftCallback(db *gorm.DB) gin.HandlerFunc {
 		// Verify state
 		state := c.Query("state")
 		storedState, err := c.Cookie("oauth_state")
-		if err != nil || state != storedState {
-			respondWithError(c, http.StatusBadRequest, "Invalid state parameter")
+		frontendURL := os.Getenv("FRONTEND_URL")
+		secure := strings.HasPrefix(frontendURL, "https://")
+		
+		if err != nil {
+			log.Printf("SSO Callback Error: Cookie 'oauth_state' not found: %v", err)
+			respondWithError(c, http.StatusBadRequest, "Session expired or invalid. Please try logging in again.")
+			return
+		}
+		
+		if state != storedState {
+			log.Printf("SSO Callback Error: State mismatch. Expected %s, got %s", storedState, state)
+			respondWithError(c, http.StatusBadRequest, "Invalid login session. Please try again.")
 			return
 		}
 
 		// Clear state cookie
-		c.SetCookie("oauth_state", "", -1, "/", "", false, true)
+		c.SetCookie("oauth_state", "", -1, "/", "", secure, true)
 
 		// Get authorization code
 		code := c.Query("code")
