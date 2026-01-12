@@ -47,7 +47,9 @@ func generateState() string {
 func MicrosoftLogin(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Check if SSO is enabled
-		if os.Getenv("SSO_ENABLED") != "true" {
+		ssoEnabled := os.Getenv("SSO_ENABLED")
+		if ssoEnabled != "true" {
+			log.Printf("SSO Login Attempted but SSO_ENABLED is '%s'", ssoEnabled)
 			respondWithError(c, http.StatusForbidden, "SSO is not enabled")
 			return
 		}
