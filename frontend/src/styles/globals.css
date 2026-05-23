@@ -1,83 +1,79 @@
+@import "tailwindcss";
+
 @custom-variant dark (&:is(.dark *));
+
+@source "../**/*.{ts,tsx}";
 
 :root {
   --font-size: 16px;
-  --background: #ffffff;
-  --foreground: #000000;
-  --card: #ffffff;
-  --card-foreground: #000000;
-  --popover: #ffffff;
-  --popover-foreground: #000000;
-  --primary: #000000;
-  --primary-foreground: #ffffff;
-  --secondary: #f5f5f5;
-  --secondary-foreground: #000000;
-  --muted: #f0f0f0;
-  --muted-foreground: #6b7280;
-  --accent: #FFD500;
-  --accent-foreground: #000000;
-  --destructive: #EF4444;
-  --destructive-foreground: #ffffff;
-  --success: #22C55E;
-  --success-foreground: #ffffff;
-  --border: #000000;
-  --input: #000000;
-  --input-background: #ffffff;
-  --switch-background: #e5e5e5;
+
+  /* === Palette: white canvas, dark sidebar, warm-tinted cards ============== */
+  --canvas: #FFFFFF;
+  --canvas-soft: #FAF6F0;          /* used for warm-tinted card variants only */
+  --card: #FFFFFF;                  /* default card = matches main bg */
+  --card-warm: #FAF6F0;             /* card with subtle warm tint */
+  --sidebar-bg: #241D18;            /* warm dark for sidebar */
+  --sidebar-fg-soft: rgba(255, 246, 235, 0.65);
+  --ink: #1A1612;
+  --ink-muted: rgba(26, 22, 18, 0.55);
+
+  --accent-pink: #F49EB5;
+  --accent-pink-soft: #FBD5DF;
+  --accent-peach: #F4B89A;
+  --accent-peach-soft: #FBE2D3;
+  --accent-green: #7FB069;
+  --accent-green-soft: #E6F2DC;
+  --accent-destructive: #D14242;
+  --accent-destructive-soft: #FBE3E3;
+
+  /* Legacy aliases (kept so untouched components don't break) */
+  --accent-lime: var(--accent-pink);
+  --accent-mint: var(--accent-peach);
+  --accent-cyan: var(--accent-peach);
+
+  /* shadcn token aliases mapped to the warm palette */
+  --background: var(--canvas);
+  --foreground: var(--ink);
+  --card-foreground: var(--ink);
+  --popover: var(--card);
+  --popover-foreground: var(--ink);
+  --primary: var(--accent-pink);
+  --primary-foreground: var(--ink);
+  --secondary: rgba(26, 22, 18, 0.05);
+  --secondary-foreground: var(--ink);
+  --muted: rgba(26, 22, 18, 0.04);
+  --muted-foreground: var(--ink-muted);
+  --accent: var(--accent-pink-soft);
+  --accent-foreground: var(--ink);
+  --destructive: var(--accent-destructive);
+  --destructive-foreground: #FFFFFF;
+  --success: var(--accent-green);
+  --success-foreground: #FFFFFF;
+  --border: rgba(26, 22, 18, 0.08);
+  --input: rgba(26, 22, 18, 0.10);
+  --input-background: var(--card);
+  --switch-background: rgba(26, 22, 18, 0.12);
   --font-weight-medium: 600;
   --font-weight-normal: 400;
-  --ring: #FFD500;
-  --chart-1: #FFD500;
-  --chart-2: #60a5fa;
-  --chart-3: #22C55E;
-  --chart-4: #EF4444;
-  --chart-5: #a78bfa;
-  --radius: 0.75rem;
-  --sidebar: #ffffff;
-  --sidebar-foreground: #000000;
-  --sidebar-primary: #000000;
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #FFD500;
-  --sidebar-accent-foreground: #000000;
-  --sidebar-border: #000000;
-  --sidebar-ring: #FFD500;
-}
+  --ring: var(--accent-pink);
+  --chart-1: var(--accent-pink);
+  --chart-2: var(--accent-peach);
+  --chart-3: var(--ink);
+  --chart-4: var(--accent-green);
+  --chart-5: var(--accent-destructive);
+  --radius: 1rem;
 
-.dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.145 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.145 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.985 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.396 0.141 25.723);
-  --destructive-foreground: oklch(0.637 0.237 25.331);
-  --border: oklch(0.269 0 0);
-  --input: oklch(0.269 0 0);
-  --ring: oklch(0.439 0 0);
-  --font-weight-medium: 500;
-  --font-weight-normal: 400;
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(0.269 0 0);
-  --sidebar-ring: oklch(0.439 0 0);
+  --sidebar: var(--sidebar-bg);
+  --sidebar-foreground: #FFFFFF;
+  --sidebar-primary: var(--accent-pink);
+  --sidebar-primary-foreground: var(--ink);
+  --sidebar-accent: rgba(255, 255, 255, 0.06);
+  --sidebar-accent-foreground: #FFFFFF;
+  --sidebar-border: rgba(255, 255, 255, 0.08);
+  --sidebar-ring: var(--accent-pink);
+
+  --text-primary: var(--ink);
+  --text-secondary: var(--ink-muted);
 }
 
 @theme inline {
@@ -107,8 +103,8 @@
   --color-chart-3: var(--chart-3);
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 6px);
+  --radius-md: calc(var(--radius) - 4px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
   --color-sidebar: var(--sidebar);
@@ -127,64 +123,22 @@
   }
 
   body {
-    @apply bg-white text-foreground;
-    background: #fafafa;
+    color: var(--ink);
     min-height: 100vh;
+    background: var(--canvas);
   }
 }
 
-/**
- * Base typography. This is not applied to elements which have an ancestor with a Tailwind text class.
- */
 @layer base {
   :where(:not(:has([class*=" text-"]), :not(:has([class^="text-"])))) {
-    h1 {
-      font-size: var(--text-2xl);
-      font-weight: var(--font-weight-medium);
-      line-height: 1.5;
-    }
-
-    h2 {
-      font-size: var(--text-xl);
-      font-weight: var(--font-weight-medium);
-      line-height: 1.5;
-    }
-
-    h3 {
-      font-size: var(--text-lg);
-      font-weight: var(--font-weight-medium);
-      line-height: 1.5;
-    }
-
-    h4 {
-      font-size: var(--text-base);
-      font-weight: var(--font-weight-medium);
-      line-height: 1.5;
-    }
-
-    p {
-      font-size: var(--text-base);
-      font-weight: var(--font-weight-normal);
-      line-height: 1.5;
-    }
-
-    label {
-      font-size: var(--text-base);
-      font-weight: var(--font-weight-medium);
-      line-height: 1.5;
-    }
-
-    button {
-      font-size: var(--text-base);
-      font-weight: var(--font-weight-medium);
-      line-height: 1.5;
-    }
-
-    input {
-      font-size: var(--text-base);
-      font-weight: var(--font-weight-normal);
-      line-height: 1.5;
-    }
+    h1 { font-size: var(--text-2xl); font-weight: var(--font-weight-medium); line-height: 1.4; }
+    h2 { font-size: var(--text-xl); font-weight: var(--font-weight-medium); line-height: 1.4; }
+    h3 { font-size: var(--text-lg); font-weight: var(--font-weight-medium); line-height: 1.4; }
+    h4 { font-size: var(--text-base); font-weight: var(--font-weight-medium); line-height: 1.5; }
+    p { font-size: var(--text-base); font-weight: var(--font-weight-normal); line-height: 1.5; }
+    label { font-size: var(--text-sm); font-weight: var(--font-weight-medium); line-height: 1.5; }
+    button { font-size: var(--text-base); font-weight: var(--font-weight-medium); line-height: 1.5; }
+    input { font-size: var(--text-base); font-weight: var(--font-weight-normal); line-height: 1.5; }
   }
 }
 
@@ -192,42 +146,64 @@ html {
   font-size: var(--font-size);
 }
 
-/* Custom utility classes for modern dashboard */
 @layer utilities {
-  .pill-button {
-    @apply rounded-full;
+  /* Single solid card surface used everywhere. */
+  .bento-card,
+  .glass-card,
+  .glass-card-strong {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 0.875rem;
   }
-  
-  .card-shadow {
-    box-shadow: none;
-  }
-  
-  .card-shadow-hover {
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  }
-  
-  .section-spacing {
-    @apply mb-10;
-  }
-  
-  .content-spacing {
-    @apply space-y-6;
-  }
-  
-  .bento-card {
-    @apply bg-white border-[3px] border-black rounded-xl p-6;
-  }
-  
-  .bento-card-hover {
-    @apply bg-white border-[3px] border-black rounded-xl p-6 transition-all hover:shadow-lg;
-  }
-}
 
-/* Smooth transitions for interactive elements */
-@layer base {
-  button,
-  a,
-  [role="button"] {
-    @apply transition-all duration-200;
+  /* No-op so existing className="glass-hover" doesn't break, just no animation. */
+  .glass-hover {
+    /* intentionally empty */
+  }
+
+  .bento-card-hover {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 1.25rem;
+  }
+
+  /* Status dots — muted soft tones for the warm palette */
+  .status-dot-online {
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 9999px;
+    background: var(--accent-green);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-green) 22%, transparent);
+  }
+  .status-dot-offline {
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 9999px;
+    background: var(--accent-destructive);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-destructive) 22%, transparent);
+  }
+
+  .focus-ring-cyan:focus-visible {
+    outline: 2px solid var(--accent-pink);
+    outline-offset: 2px;
+  }
+
+  /* Skeleton shimmer for light theme */
+  .glass-skeleton {
+    position: relative;
+    overflow: hidden;
+    background: rgba(26, 22, 18, 0.05);
+    border-radius: 0.75rem;
+  }
+  .glass-skeleton::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(110deg, transparent 30%, rgba(255, 255, 255, 0.7) 50%, transparent 70%);
+    transform: translateX(-100%);
+    animation: shimmer 1.4s ease-in-out infinite;
+  }
+  @keyframes shimmer {
+    to { transform: translateX(100%); }
   }
 }

@@ -2,16 +2,16 @@ import { useState, useEffect } from 'react';
 import { usePostgres } from '../hooks/usePostgres';
 import { useServers } from '../hooks/useServers';
 import { PostgresContainer, PostgresDatabase } from '../types/postgres';
-import { Button } from './ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-import { Database, Download, Server, Container, Clock, CheckCircle2, Loader2 } from 'lucide-react';
-import { Badge } from './ui/badge';
+import { Database, Download, Server, Container, Clock, Loader2 } from 'lucide-react';
 import { ScrollArea } from './ui/scroll-area';
+import { GlassCard } from './ui/glass-card';
+import { AccentButton } from './ui/accent-button';
+import { GlassSkeleton } from './ui/glass-skeleton';
 
 export const PostgresManager = () => {
   const { servers } = useServers();
-  const { getContainers, getDatabases, createDump, testConnection, loading } = usePostgres();
+  const { getContainers, getDatabases, createDump, loading } = usePostgres();
 
   const [selectedServer, setSelectedServer] = useState<string>('');
   const [containers, setContainers] = useState<PostgresContainer[]>([]);
@@ -74,7 +74,6 @@ export const PostgresManager = () => {
         database: databaseName,
       });
 
-      // Download the file
       const containerName = selectedContainerData?.name || 'unknown';
       const now = new Date();
       const dateStr = now.toISOString().split('T')[0];
@@ -91,45 +90,26 @@ export const PostgresManager = () => {
       document.body.removeChild(a);
     } catch (error) {
       console.error('Failed to create dump:', error);
-      // Error is already shown by usePostgres hook via toast
     } finally {
       setDumpingDatabase(null);
     }
   };
 
-  const getUptime = (createdDate: string): string => {
-    const created = new Date(createdDate);
-    const now = new Date();
-    const diffMs = now.getTime() - created.getTime();
-    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-    const diffDays = Math.floor(diffHours / 24);
-    const diffWeeks = Math.floor(diffDays / 7);
-
-    if (diffWeeks > 0) {
-      return `Up ${diffWeeks} week${diffWeeks > 1 ? 's' : ''} (healthy)`;
-    } else if (diffDays > 0) {
-      return `Up ${diffDays} day${diffDays > 1 ? 's' : ''} (healthy)`;
-    } else {
-      return `Up ${diffHours} hour${diffHours > 1 ? 's' : ''}`;
-    }
-  };
-
   const selectedContainerData = containers.find(c => c.id === selectedContainer);
 
-  // Show empty state if no servers configured
   if (servers.length === 0) {
     return (
-      <div className="bento-card">
+      <GlassCard>
         <div className="text-center py-16">
-          <div className="h-24 w-24 rounded-xl bg-secondary border-2 border-black/10 flex items-center justify-center mx-auto mb-6">
-            <Server className="h-12 w-12 text-muted-foreground/60" />
+          <div className="h-24 w-24 rounded-2xl glass-card flex items-center justify-center mx-auto mb-6">
+            <Server className="h-12 w-12 text-slate-500" />
           </div>
-          <h3 className="mb-3">No Servers Configured</h3>
-          <p className="text-muted-foreground max-w-md mx-auto">
+          <h3 className="mb-3 text-lg font-semibold text-slate-900">No Servers Configured</h3>
+          <p className="text-slate-600 max-w-md mx-auto">
             Add a server from the Infrastructure page to manage PostgreSQL containers and databases.
           </p>
         </div>
-      </div>
+      </GlassCard>
     );
   }
 
@@ -137,24 +117,24 @@ export const PostgresManager = () => {
     <div className="space-y-6">
       {/* Server Selection Card */}
       {!selectedServer && (
-        <div className="bento-card">
+        <GlassCard>
           <div className="flex items-center gap-4 mb-6">
-            <div className="h-12 w-12 rounded-xl bg-accent border-2 border-black flex items-center justify-center">
-              <Database className="h-6 w-6 text-black" />
+            <div className="h-12 w-12 rounded-2xl bg-[var(--accent-cyan)] flex items-center justify-center shadow-[0_4px_18px_rgba(0,229,255,0.3)]">
+              <Database className="h-6 w-6 text-[#0A0B14]" />
             </div>
             <div>
-              <h2>PostgreSQL Containers</h2>
-              <p className="text-muted-foreground">Select a server to view PostgreSQL containers</p>
+              <h2 className="text-xl font-semibold text-slate-900">PostgreSQL Containers</h2>
+              <p className="text-slate-600 text-sm">Select a server to view PostgreSQL containers</p>
             </div>
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium">Select Server</label>
+            <label className="text-sm font-medium text-slate-700">Select Server</label>
             <Select value={selectedServer} onValueChange={setSelectedServer}>
-              <SelectTrigger className="border-2 border-black/10 h-12 rounded-lg">
+              <SelectTrigger className="h-12">
                 <SelectValue placeholder="Choose a server" />
               </SelectTrigger>
-              <SelectContent className="border-2 border-black/10">
+              <SelectContent>
                 {servers.map((server) => (
                   <SelectItem key={server.id} value={server.id}>
                     <div className="flex items-center gap-2">
@@ -166,80 +146,84 @@ export const PostgresManager = () => {
               </SelectContent>
             </Select>
           </div>
-        </div>
+        </GlassCard>
       )}
 
       {/* Split Pane Layout */}
       {selectedServer && (
-        <div className="bento-card p-0 overflow-hidden">
+        <GlassCard className="p-0 overflow-hidden">
           {/* Header */}
-          <div className="p-6 border-b-2 border-black/10">
+          <div className="p-6 border-b border-black/6">
             <div className="flex items-center gap-4">
-              <div className="h-12 w-12 rounded-xl bg-accent border-2 border-black flex items-center justify-center">
-                <Database className="h-6 w-6 text-black" />
+              <div className="h-12 w-12 rounded-2xl bg-[var(--accent-cyan)] flex items-center justify-center shadow-[0_4px_18px_rgba(0,229,255,0.3)]">
+                <Database className="h-6 w-6 text-[#0A0B14]" />
               </div>
               <div className="flex-1">
-                <h2>PostgreSQL Containers</h2>
-                <p className="text-muted-foreground">
+                <h2 className="text-xl font-semibold text-slate-900">PostgreSQL Containers</h2>
+                <p className="text-slate-600 text-sm">
                   {servers.find(s => s.id === selectedServer)?.name || 'Server'}
                 </p>
               </div>
-              <Button
-                variant="outline"
+              <AccentButton
+                variant="ghost"
                 onClick={() => {
                   setSelectedServer('');
                   setSelectedContainer('');
                   setContainers([]);
                   setDatabases([]);
                 }}
-                className="border-2 border-black rounded-lg hover:bg-accent hover:text-accent-foreground"
               >
                 Change Server
-              </Button>
+              </AccentButton>
             </div>
           </div>
 
           {/* Split Pane Content */}
           <div className="flex h-[600px]">
             {/* Left Sidebar - Container List */}
-            <div className="w-80 border-r-2 border-black/10 bg-secondary/30">
+            <div className="w-80 border-r border-black/6 bg-black/3">
               <ScrollArea className="h-full">
                 <div className="p-2">
                   {loadingContainers ? (
-                    <div className="text-center py-12 px-4">
-                      <Loader2 className="h-12 w-12 text-muted-foreground/40 mx-auto mb-3 animate-spin" />
-                      <p className="text-sm text-muted-foreground">Loading containers...</p>
+                    <div className="p-2 space-y-2">
+                      <GlassSkeleton.Row count={4} />
                     </div>
                   ) : containers.length === 0 ? (
                     <div className="text-center py-12 px-4">
-                      <Container className="h-12 w-12 text-muted-foreground/40 mx-auto mb-3" />
-                      <p className="text-sm text-muted-foreground">No containers found</p>
+                      <Container className="h-12 w-12 text-slate-400 mx-auto mb-3" />
+                      <p className="text-sm text-slate-600">No containers found</p>
                     </div>
                   ) : (
-                    containers.map((container) => (
-                      <button
-                        key={container.id}
-                        onClick={() => setSelectedContainer(container.id)}
-                        className={`w-full text-left p-4 rounded-lg mb-1 transition-all relative group border-2 ${selectedContainer === container.id
-                            ? 'bg-accent/10 border-black pl-3'
-                            : 'hover:bg-white/50 border-transparent pl-3 hover:border-black/10'
+                    containers.map((container) => {
+                      const isSelected = selectedContainer === container.id;
+                      return (
+                        <button
+                          key={container.id}
+                          onClick={() => setSelectedContainer(container.id)}
+                          className={`w-full text-left p-3 rounded-xl mb-1 transition-all relative group focus-ring-cyan ${
+                            isSelected
+                              ? 'bg-black/8 shadow-[var(--glass-shadow)]'
+                              : 'hover:bg-black/4'
                           }`}
-                      >
-                        <div className="flex items-start gap-3">
-                          <Container className={`h-5 w-5 mt-0.5 flex-shrink-0 ${selectedContainer === container.id ? 'text-black' : 'text-muted-foreground'
-                            }`} />
-                          <div className="flex-1 min-w-0">
-                            <div className="font-medium text-sm truncate">
-                              {container.name}
-                            </div>
-                            <div className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
-                              <Clock className="h-3 w-3" />
-                              {container.status}
+                        >
+                          {isSelected && (
+                            <span className="absolute left-0 top-2 bottom-2 w-1 rounded-r-full bg-[var(--accent-lime)]" />
+                          )}
+                          <div className="flex items-start gap-3 pl-2">
+                            <Container className={`h-5 w-5 mt-0.5 flex-shrink-0 ${isSelected ? 'text-slate-900' : 'text-slate-500'}`} />
+                            <div className="flex-1 min-w-0">
+                              <div className="font-medium text-sm truncate text-slate-900">
+                                {container.name}
+                              </div>
+                              <div className="text-xs text-slate-500 flex items-center gap-1 mt-1">
+                                <Clock className="h-3 w-3" />
+                                {container.status}
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      </button>
-                    ))
+                        </button>
+                      );
+                    })
                   )}
                 </div>
               </ScrollArea>
@@ -253,94 +237,86 @@ export const PostgresManager = () => {
                     <>
                       {/* Container Header */}
                       <div className="mb-6">
-                        <h3 className="mb-1">{selectedContainerData.name}</h3>
-                        <p className="text-sm text-muted-foreground">
+                        <h3 className="mb-1 text-lg font-semibold text-slate-900">{selectedContainerData.name}</h3>
+                        <p className="text-sm text-slate-600">
                           PostgreSQL databases inside this container
                         </p>
                       </div>
 
                       {/* Database Grid */}
                       {loadingDatabases ? (
-                        <div className="text-center py-16">
-                          <Loader2 className="h-16 w-16 text-muted-foreground/40 mx-auto mb-4 animate-spin" />
-                          <p className="text-muted-foreground">Loading databases...</p>
+                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                          <GlassSkeleton.Card count={3} />
                         </div>
                       ) : databases.length === 0 ? (
                         <div className="text-center py-16">
-                          <Database className="h-16 w-16 text-muted-foreground/40 mx-auto mb-4" />
-                          <p className="text-muted-foreground">No databases found in this container</p>
+                          <Database className="h-16 w-16 text-slate-400 mx-auto mb-4" />
+                          <p className="text-slate-600">No databases found in this container</p>
                         </div>
                       ) : (
-                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                        <div
+                          initial="initial"
+                          animate="animate"
+                          className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4"
+                        >
                           {databases.map((db) => (
-                            <Card
+                            <div
                               key={db.name}
-                              className="border-2 border-black/10 rounded-lg hover:shadow-md transition-shadow"
+                              className="glass-card glass-hover p-5"
                             >
-                              <CardContent className="p-5">
-                                {/* Database Header */}
-                                <div className="flex items-start justify-between mb-4">
-                                  <div className="flex items-center gap-3">
-                                    <div className="h-10 w-10 rounded-lg bg-accent border-2 border-black flex items-center justify-center flex-shrink-0">
-                                      <Database className="h-5 w-5 text-black" />
-                                    </div>
-                                    <div className="font-medium truncate">{db.name}</div>
+                              <div className="flex items-start justify-between mb-4">
+                                <div className="flex items-center gap-3 min-w-0">
+                                  <div className="h-10 w-10 rounded-xl bg-[var(--accent-lime)] flex items-center justify-center flex-shrink-0 shadow-[0_3px_12px_rgba(163,255,18,0.35)]">
+                                    <Database className="h-5 w-5 text-[#0A0B14]" />
                                   </div>
-                                  <Badge
-                                    variant="outline"
-                                    className="border-black text-black rounded-md text-xs px-2.5 py-0.5"
-                                  >
-                                    Active
-                                  </Badge>
+                                  <div className="font-medium truncate text-slate-900">{db.name}</div>
                                 </div>
+                                <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium bg-[color-mix(in_srgb,var(--accent-lime)_18%,transparent)] text-emerald-300 border border-[color-mix(in_srgb,var(--accent-lime)_40%,transparent)]">
+                                  Active
+                                </span>
+                              </div>
 
-                                {/* Database Metadata */}
-                                <div className="space-y-2 mb-4">
-                                  <div className="flex justify-between text-sm">
-                                    <span className="text-muted-foreground">Owner:</span>
-                                    <span className="font-medium">{db.owner}</span>
-                                  </div>
-                                  <div className="flex justify-between text-sm">
-                                    <span className="text-muted-foreground">Encoding:</span>
-                                    <span className="font-medium">{db.encoding}</span>
-                                  </div>
-                                  <div className="flex justify-between text-sm">
-                                    <span className="text-muted-foreground">Size:</span>
-                                    <span className="font-medium">{db.size || 'N/A'}</span>
-                                  </div>
+                              <div className="space-y-2 mb-4 text-sm">
+                                <div className="flex justify-between">
+                                  <span className="text-slate-500">Owner:</span>
+                                  <span className="font-medium text-slate-800">{db.owner}</span>
                                 </div>
+                                <div className="flex justify-between">
+                                  <span className="text-slate-500">Encoding:</span>
+                                  <span className="font-medium text-slate-800">{db.encoding}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-slate-500">Size:</span>
+                                  <span className="font-medium text-slate-800">{db.size || 'N/A'}</span>
+                                </div>
+                              </div>
 
-                                {/* Download Button */}
-                                <Button
-                                  variant="outline"
-                                  onClick={() => handleDump(db.name)}
-                                  disabled={loading || dumpingDatabase === db.name}
-                                  className="w-full border-2 border-black/10 rounded-lg hover:bg-accent hover:border-black hover:text-accent-foreground"
-                                >
-                                  {dumpingDatabase === db.name ? (
-                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                  ) : (
-                                    <Download className="h-4 w-4 mr-2" />
-                                  )}
-                                  Download Dump
-                                </Button>
-                              </CardContent>
-                            </Card>
+                              <AccentButton
+                                variant="ghost"
+                                onClick={() => handleDump(db.name)}
+                                disabled={loading || dumpingDatabase === db.name}
+                                loading={dumpingDatabase === db.name}
+                                className="w-full"
+                              >
+                                {dumpingDatabase !== db.name && <Download className="h-4 w-4" />}
+                                Download Dump
+                              </AccentButton>
+                            </div>
                           ))}
                         </div>
                       )}
                     </>
                   ) : (
                     <div className="text-center py-16">
-                      <Container className="h-16 w-16 text-muted-foreground/40 mx-auto mb-4" />
-                      <p className="text-muted-foreground">Select a container to view databases</p>
+                      <Container className="h-16 w-16 text-slate-400 mx-auto mb-4" />
+                      <p className="text-slate-600">Select a container to view databases</p>
                     </div>
                   )}
                 </div>
               </ScrollArea>
             </div>
           </div>
-        </div>
+        </GlassCard>
       )}
     </div>
   );

@@ -1,10 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Button } from './ui/button';
-import { Badge } from './ui/badge';
-import { Input } from './ui/input';
-import { Play, Square, Loader2, Clock, Settings, Edit2, Check, X, ExternalLink, Server as ServerIcon, Globe, MoreVertical, Database } from 'lucide-react';
+import { Play, Square, Clock, Settings, Edit2, Check, X, ExternalLink, Server as ServerIcon, Globe, MoreVertical, Database } from 'lucide-react';
 import { App, Server, Project } from '../types/app';
-import { executeDockerCompose } from '../lib/serverApi';
 import { toast } from 'sonner@2.0.3';
 import {
   DropdownMenu,
@@ -13,6 +9,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from './ui/dropdown-menu';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { AccentButton } from './ui/accent-button';
+import { StatusBadge } from './ui/status-badge';
 
 interface AppCardProps {
   app: App;
@@ -26,24 +25,37 @@ interface AppCardProps {
   isAdmin: boolean;
 }
 
+const TIMEOUT_OPTIONS = [
+  { value: '5', label: '5 min' },
+  { value: '10', label: '10 min' },
+  { value: '15', label: '15 min' },
+  { value: '30', label: '30 min' },
+  { value: '60', label: '1 hour' },
+  { value: '120', label: '2 hours' },
+  { value: '180', label: '3 hours' },
+  { value: '240', label: '4 hours' },
+  { value: '360', label: '6 hours' },
+  { value: '480', label: '8 hours' },
+  { value: '720', label: '12 hours' },
+  { value: '1440', label: '24 hours' },
+  { value: '0', label: 'Infinite' },
+];
+
 export function AppCard({ app, server, project, onUpdateApp, onStartApp, onStopApp, onEditApp, onPostgresBackup, isAdmin }: AppCardProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
   const [isEditingTimeout, setIsEditingTimeout] = useState(false);
   const [newTimeout, setNewTimeout] = useState((app.autoStopTimeout ?? 60).toString());
 
-  // Calculate time remaining using timerEndsAt for persistence
   useEffect(() => {
     if (app.status === 'running' && app.timerEndsAt) {
       const updateTimer = () => {
         const remaining = Math.max(0, app.timerEndsAt! - Date.now());
         setTimeRemaining(remaining);
-
         if (remaining === 0) {
           handleStop();
         }
       };
-
       updateTimer();
       const interval = setInterval(updateTimer, 1000);
       return () => clearInterval(interval);
@@ -57,7 +69,6 @@ export function AppCard({ app, server, project, onUpdateApp, onStartApp, onStopA
     const hours = Math.floor(totalSeconds / 3600);
     const minutes = Math.floor((totalSeconds % 3600) / 60);
     const seconds = totalSeconds % 60;
-
     if (hours > 0) {
       return `${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
     }
@@ -77,24 +88,19 @@ export function AppCard({ app, server, project, onUpdateApp, onStartApp, onStopA
       toast.error('Server not found for this app');
       return;
     }
-
     if (server.status === 'offline') {
       toast.error(`Server "${server.name}" is offline`);
       return;
     }
-
     setIsLoading(true);
-
     try {
       const result = await onStartApp(app.id, app.autoStopTimeout ?? 60);
       toast.success(`${app.name} started successfully`);
-
-      // Open app domain in new tab if starting and app_url is provided
       if (result.app_url) {
         setTimeout(() => {
           window.open(result.app_url, '_blank');
           toast.success(`Opening ${result.app_url} in new tab`);
-        }, 1500); // Small delay to let the app start
+        }, 1500);
       } else if (app.domain) {
         setTimeout(() => {
           const url = formatDomain(app.domain);
@@ -115,9 +121,7 @@ export function AppCard({ app, server, project, onUpdateApp, onStartApp, onStopA
       toast.error('Server not found for this app');
       return;
     }
-
     setIsLoading(true);
-
     try {
       await onStopApp(app.id);
       toast.success(`${app.name} stopped successfully`);
@@ -135,7 +139,6 @@ export function AppCard({ app, server, project, onUpdateApp, onStartApp, onStopA
       toast.error('Invalid timeout value');
       return;
     }
-
     try {
       await onUpdateApp(app.id, { autoStopTimeout: timeout });
       setIsEditingTimeout(false);
@@ -161,25 +164,12 @@ export function AppCard({ app, server, project, onUpdateApp, onStartApp, onStopA
   };
 
   return (
-    <div className="flex items-center gap-4 p-4 bg-white rounded-lg hover:bg-secondary/30 transition-all border-2 border-black/5 hover:border-black/10 group">
-      {/* Status Indicator */}
-      <div
-        className={`h-2.5 w-2.5 rounded-full flex-shrink-0 ${app.status === 'running' ? 'bg-[#22C55E] animate-pulse' : 'bg-[#EF4444]'
-          }`}
-      />
-
-      {/* Primary Name */}
+    <div className="bento-card flex items-center gap-4 p-4 group">
+      {/* Primary Name + Status */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-0.5">
-          <span className="truncate">{app.name}</span>
-          <span
-            className={`text-xs px-2 py-0.5 rounded-full flex-shrink-0 ${app.status === 'running'
-              ? 'bg-[#22C55E]/10 text-[#22C55E]'
-              : 'bg-[#EF4444]/10 text-[#EF4444]'
-              }`}
-          >
-            {app.status}
-          </span>
+          <span className="truncate font-medium text-slate-900">{app.name}</span>
+          <StatusBadge status={app.status === 'running' ? 'running' : 'stopped'} />
         </div>
 
         {/* Secondary Info - Domain URL */}
@@ -187,7 +177,7 @@ export function AppCard({ app, server, project, onUpdateApp, onStartApp, onStopA
           href={formatDomain(app.domain)}
           target="_blank"
           rel="noopener noreferrer"
-          className="text-sm text-primary hover:underline truncate flex items-center gap-1.5 w-fit max-w-full"
+          className="text-sm text-slate-600 hover:text-slate-900 hover:underline truncate flex items-center gap-1.5 w-fit max-w-full"
           onClick={(e) => e.stopPropagation()}
         >
           <Globe className="h-3.5 w-3.5 flex-shrink-0" />
@@ -199,36 +189,27 @@ export function AppCard({ app, server, project, onUpdateApp, onStartApp, onStopA
       {/* Key Metrics */}
       <div className="flex items-center gap-4 flex-shrink-0">
         {/* Runtime - Editable */}
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <div className="flex items-center gap-2 text-sm text-slate-600">
           <Clock className="h-4 w-4" />
           {isEditingTimeout ? (
-            <div className="flex items-center gap-2">
-              <select
-                value={newTimeout}
-                onChange={(e) => setNewTimeout(e.target.value)}
-                className="h-7 px-2 border border-gray-300 rounded text-sm"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <option value="5">5 min</option>
-                <option value="10">10 min</option>
-                <option value="15">15 min</option>
-                <option value="30">30 min</option>
-                <option value="60">1 hour</option>
-                <option value="120">2 hours</option>
-                <option value="180">3 hours</option>
-                <option value="240">4 hours</option>
-                <option value="360">6 hours</option>
-                <option value="480">8 hours</option>
-                <option value="720">12 hours</option>
-                <option value="1440">24 hours</option>
-                <option value="0">Infinite</option>
-              </select>
+            <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+              <Select value={newTimeout} onValueChange={setNewTimeout}>
+                <SelectTrigger className="h-8 w-[120px] text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {TIMEOUT_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <button
                 onClick={(e) => {
                   e.stopPropagation();
                   handleUpdateTimeout();
                 }}
-                className="text-green-600 hover:text-green-700"
+                className="h-7 w-7 rounded-md flex items-center justify-center bg-[var(--accent-lime)]/30 text-emerald-300 hover:bg-[var(--accent-lime)]/50 transition-colors focus-ring-cyan"
+                aria-label="Save timeout"
               >
                 <Check className="h-4 w-4" />
               </button>
@@ -237,7 +218,8 @@ export function AppCard({ app, server, project, onUpdateApp, onStartApp, onStopA
                   e.stopPropagation();
                   handleCancelTimeout();
                 }}
-                className="text-red-600 hover:text-red-700"
+                className="h-7 w-7 rounded-md flex items-center justify-center bg-[var(--accent-destructive)]/15 text-red-300 hover:bg-[var(--accent-destructive)]/30 transition-colors focus-ring-cyan"
+                aria-label="Cancel"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -249,7 +231,7 @@ export function AppCard({ app, server, project, onUpdateApp, onStartApp, onStopA
                 setIsEditingTimeout(true);
                 setNewTimeout((app.autoStopTimeout ?? 60).toString());
               }}
-              className="hover:text-foreground flex items-center gap-1"
+              className="hover:text-slate-900 flex items-center gap-1 rounded-md px-1 py-0.5 hover:bg-black/4 transition-colors"
             >
               <span>Runtime: {formatRunTime(app.autoStopTimeout ?? 60)}</span>
               <Edit2 className="h-3 w-3" />
@@ -259,73 +241,52 @@ export function AppCard({ app, server, project, onUpdateApp, onStartApp, onStopA
 
         {/* Server Status */}
         <div className="flex items-center gap-2">
-          <ServerIcon className="h-4 w-4 text-muted-foreground" />
-          <span className="text-sm text-muted-foreground">{server?.name || 'Unknown'}</span>
+          <ServerIcon className="h-4 w-4 text-slate-500" />
+          <span className="text-sm text-slate-600">{server?.name || 'Unknown'}</span>
           {server && (
-            <span
-              className={`text-xs px-2 py-0.5 rounded-full ${server.status === 'online'
-                ? 'bg-[#22C55E]/10 text-[#22C55E]'
-                : 'bg-[#EF4444]/10 text-[#EF4444]'
-                }`}
-            >
-              {server.status}
-            </span>
+            <StatusBadge status={server.status === 'online' ? 'online' : 'offline'} />
           )}
         </div>
 
-        {/* Auto-stop countdown (when running) */}
+        {/* Auto-stop countdown */}
         {timeRemaining !== null && (
-          <div className="flex items-center gap-2 bg-accent/10 rounded-lg px-3 py-1.5 border border-accent">
-            <Clock className="h-4 w-4 text-accent-foreground animate-pulse" />
-            <span className="text-sm text-accent-foreground">{formatTime(timeRemaining)}</span>
+          <div className="flex items-center gap-2 rounded-full px-3 py-1.5 bg-[var(--accent-peach-soft)] border border-[color-mix(in_srgb,var(--accent-peach)_30%,transparent)] text-[var(--ink)]">
+            <Clock className="h-4 w-4" />
+            <span className="text-sm font-medium tabular-nums">{formatTime(timeRemaining)}</span>
           </div>
         )}
       </div>
 
       {/* Action Buttons */}
-      <div className="flex items-center gap-3 flex-shrink-0">
+      <div className="flex items-center gap-2 flex-shrink-0">
         {app.status === 'stopped' ? (
-          <Button
+          <AccentButton
             onClick={(e) => {
               e.stopPropagation();
               handleStart();
             }}
             disabled={isLoading || !server || server.status !== 'online'}
-            className="h-12 px-6 rounded-lg bg-accent hover:bg-accent/90 text-accent-foreground border-2 border-black"
+            loading={isLoading}
+            variant="lime"
+            size="lg"
           >
-            {isLoading ? (
-              <>
-                <Loader2 className="h-5 w-5 animate-spin mr-2" />
-                <span>Starting...</span>
-              </>
-            ) : (
-              <>
-                <Play className="h-5 w-5 mr-2" />
-                <span>Start</span>
-              </>
-            )}
-          </Button>
+            {!isLoading && <Play className="h-4 w-4" />}
+            {isLoading ? 'Starting…' : 'Start'}
+          </AccentButton>
         ) : (
-          <Button
+          <AccentButton
             onClick={(e) => {
               e.stopPropagation();
               handleStop();
             }}
             disabled={isLoading || !server}
-            className="h-12 px-6 rounded-lg bg-[#EF4444] hover:bg-[#EF4444]/90 text-white border-2 border-black"
+            loading={isLoading}
+            variant="destructive"
+            size="lg"
           >
-            {isLoading ? (
-              <>
-                <Loader2 className="h-5 w-5 animate-spin mr-2" />
-                <span>Stopping...</span>
-              </>
-            ) : (
-              <>
-                <Square className="h-5 w-5 mr-2" />
-                <span>Stop</span>
-              </>
-            )}
-          </Button>
+            {!isLoading && <Square className="h-4 w-4" />}
+            {isLoading ? 'Stopping…' : 'Stop'}
+          </AccentButton>
         )}
 
         {/* Options Menu - Admin Only */}
@@ -333,18 +294,19 @@ export function AppCard({ app, server, project, onUpdateApp, onStartApp, onStopA
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
-                className="h-12 w-12 rounded-lg hover:bg-gray-100 border-2 border-transparent hover:border-gray-300 flex items-center justify-center transition-all"
+                className="h-10 w-10 rounded-xl bg-black/3 border border-black/8 hover:bg-black/6 flex items-center justify-center transition-colors focus-ring-cyan backdrop-blur-md text-slate-700"
                 onClick={(e) => e.stopPropagation()}
+                aria-label="More options"
               >
-                <MoreVertical className="h-5 w-5" />
+                <MoreVertical className="h-4 w-4" />
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent
               align="end"
-              className="w-48 z-[100] bg-white shadow-lg border-2"
+              className="w-48 z-[100] glass-card-strong border-0 p-1"
             >
               <DropdownMenuItem
-                className="cursor-pointer hover:bg-gray-100"
+                className="cursor-pointer rounded-lg focus:bg-[var(--accent-cyan)]/20"
                 onSelect={(e) => {
                   e.preventDefault();
                   onEditApp(app);
@@ -355,7 +317,7 @@ export function AppCard({ app, server, project, onUpdateApp, onStartApp, onStopA
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem
-                className="cursor-pointer hover:bg-gray-100"
+                className="cursor-pointer rounded-lg focus:bg-[var(--accent-cyan)]/20"
                 onSelect={(e) => {
                   e.preventDefault();
                   if (server) onPostgresBackup(server);
@@ -367,7 +329,7 @@ export function AppCard({ app, server, project, onUpdateApp, onStartApp, onStopA
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem
-                className="cursor-pointer hover:bg-gray-100"
+                className="cursor-pointer rounded-lg focus:bg-[var(--accent-cyan)]/20"
                 onSelect={(e) => {
                   e.preventDefault();
                   const url = formatDomain(app.domain);

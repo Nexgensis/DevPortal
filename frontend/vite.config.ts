@@ -1,10 +1,11 @@
 
   import { defineConfig } from 'vite';
   import react from '@vitejs/plugin-react-swc';
+  import tailwindcss from '@tailwindcss/vite';
   import path from 'path';
 
   export default defineConfig({
-    plugins: [react()],
+    plugins: [react(), tailwindcss()],
     resolve: {
       extensions: ['.js', '.jsx', '.ts', '.tsx', '.json'],
       alias: {
@@ -56,6 +57,16 @@
     },
     server: {
       port: 3000,
-      open: true,
+      // Don't auto-open a browser inside a Docker container — there's nothing to open.
+      open: !process.env.IN_DOCKER,
+      host: true,
+      proxy: {
+        '/api': {
+          // VITE_DEV_API_PROXY is set in docker-compose.dev.yml to point at the
+          // `api` service. Bare-metal dev falls back to the local backend.
+          target: process.env.VITE_DEV_API_PROXY || 'http://localhost:8080',
+          changeOrigin: true,
+        },
+      },
     },
   });

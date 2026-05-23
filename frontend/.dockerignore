@@ -1,0 +1,29 @@
+# Keep the Docker build context small + the image lean.
+# Critically: never copy host node_modules into the image — different arch / binaries.
+
+node_modules
+build
+dist
+.next
+.cache
+
+# Source control + editor
+.git
+.gitignore
+.idea
+.vscode
+.DS_Store
+
+# Local env
+.env
+.env.*
+!.env.example
+
+# Logs & coverage
+npm-debug.log
+yarn-error.log
+coverage
+
+# Editor swap files
+*.swp
+*.swo

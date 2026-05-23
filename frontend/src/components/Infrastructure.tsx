@@ -1,5 +1,4 @@
-import { useState, useEffect } from 'react';
-import { Button } from './ui/button';
+import { useState } from 'react';
 import { Server, Project } from '../types/app';
 import { ServerManagementDialog } from './ServerManagementDialog';
 import { ProjectManagementDialog } from './ProjectManagementDialog';
@@ -11,6 +10,9 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from './ui/dropdown-menu';
+import { GlassCard } from './ui/glass-card';
+import { AccentButton } from './ui/accent-button';
+import { StatusBadge } from './ui/status-badge';
 
 interface InfrastructureProps {
   servers: Server[];
@@ -64,73 +66,60 @@ export function Infrastructure({
     <>
       <div className="space-y-8">
         {/* Server Connections Section */}
-        <div className="bento-card">
+        <GlassCard>
           <div className="flex items-center justify-between mb-6">
             <div>
-              <h2 className="flex items-center gap-2">
+              <h2 className="flex items-center gap-2 text-xl font-semibold text-slate-900">
                 <ServerIcon className="h-6 w-6" />
                 Server Connections
               </h2>
-              <p className="text-sm text-muted-foreground mt-1">
+              <p className="text-sm text-slate-600 mt-1">
                 Manage SSH connections to your servers
               </p>
             </div>
-            <Button
-              onClick={handleAddServer}
-              className="bg-accent hover:bg-accent/90 text-accent-foreground border-2 border-black rounded-lg h-11 px-6"
-            >
-              <Plus className="h-4 w-4 mr-2" />
+            <AccentButton onClick={handleAddServer} variant="lime">
+              <Plus className="h-4 w-4" />
               Add Server
-            </Button>
+            </AccentButton>
           </div>
 
           {servers.length === 0 ? (
-            <div className="text-center py-12 px-4 bg-secondary/30 rounded-xl border-2 border-dashed border-black/10">
-              <div className="h-20 w-20 rounded-xl bg-white border-2 border-black/10 flex items-center justify-center mx-auto mb-4">
-                <ServerIcon className="h-10 w-10 text-muted-foreground/60" />
+            <div className="text-center py-12 px-4 rounded-2xl border border-dashed border-black/6 bg-black/3">
+              <div className="h-20 w-20 rounded-2xl glass-card flex items-center justify-center mx-auto mb-4">
+                <ServerIcon className="h-12 w-12 text-slate-500" />
               </div>
-              <p className="text-muted-foreground mb-4">No servers configured yet</p>
-              <Button onClick={handleAddServer} variant="outline" className="border-2 border-black rounded-lg">
-                <Plus className="h-4 w-4 mr-2" />
+              <p className="text-slate-600 mb-4">No servers configured yet</p>
+              <AccentButton onClick={handleAddServer} variant="ghost">
+                <Plus className="h-4 w-4" />
                 Add Your First Server
-              </Button>
+              </AccentButton>
             </div>
           ) : (
             <div className="space-y-2">
               {servers.map((server) => (
                 <div
                   key={server.id}
-                  className="flex items-center gap-4 p-4 bg-white rounded-lg hover:bg-secondary/30 transition-all border-2 border-black/5 hover:border-black/10"
+                  className="glass-card glass-hover flex items-center gap-4 p-4"
                 >
-                  <div
-                    className={`h-2.5 w-2.5 rounded-full flex-shrink-0 ${server.status === 'online' ? 'bg-[#22C55E]' : 'bg-[#EF4444]'
-                      }`}
-                  />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-0.5">
-                      <span className="truncate">{server.name}</span>
-                      <span
-                        className={`text-xs px-2 py-0.5 rounded-full flex-shrink-0 ${server.status === 'online'
-                          ? 'bg-[#22C55E]/10 text-[#22C55E]'
-                          : 'bg-[#EF4444]/10 text-[#EF4444]'
-                          }`}
-                      >
-                        {server.status}
-                      </span>
+                      <span className="truncate font-medium text-slate-900">{server.name}</span>
+                      <StatusBadge status={server.status === 'online' ? 'online' : 'offline'} />
                     </div>
-                    <div className="text-sm text-muted-foreground">{server.address}</div>
+                    <div className="text-sm text-slate-600">{server.address}</div>
                   </div>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <button
-                        className="h-9 w-9 rounded-lg hover:bg-gray-100 border-2 border-transparent hover:border-gray-300 flex items-center justify-center transition-all flex-shrink-0"
+                        className="h-9 w-9 rounded-xl bg-black/3 border border-black/8 hover:bg-black/6 flex items-center justify-center transition-colors flex-shrink-0 focus-ring-cyan backdrop-blur-md text-slate-700"
+                        aria-label="More options"
                       >
                         <MoreVertical className="h-4 w-4" />
                       </button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-48 z-[100] bg-white shadow-lg border-2">
+                    <DropdownMenuContent align="end" className="w-48 z-[100] glass-card-strong border-0 p-1">
                       <DropdownMenuItem
-                        className="cursor-pointer hover:bg-gray-100"
+                        className="cursor-pointer rounded-lg focus:bg-[var(--accent-cyan)]/20"
                         onSelect={(e) => {
                           e.preventDefault();
                           handleEditServer(server);
@@ -141,7 +130,7 @@ export function Infrastructure({
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem
-                        className="cursor-pointer hover:bg-gray-100"
+                        className="cursor-pointer rounded-lg focus:bg-[var(--accent-cyan)]/20"
                         onSelect={(e) => {
                           e.preventDefault();
                           onPostgresBackup(server);
@@ -156,64 +145,62 @@ export function Infrastructure({
               ))}
             </div>
           )}
-        </div>
+        </GlassCard>
 
         {/* Project Organization Section */}
-        <div className="bento-card">
+        <GlassCard>
           <div className="flex items-center justify-between mb-6">
             <div>
-              <h2 className="flex items-center gap-2">
+              <h2 className="flex items-center gap-2 text-xl font-semibold text-slate-900">
                 <FolderKanban className="h-6 w-6" />
                 Project Organization
               </h2>
-              <p className="text-sm text-muted-foreground mt-1">
+              <p className="text-sm text-slate-600 mt-1">
                 Group applications into logical projects
               </p>
             </div>
-            <Button
-              onClick={handleAddProject}
-              className="bg-accent hover:bg-accent/90 text-accent-foreground border-2 border-black rounded-lg h-11 px-6"
-            >
-              <Plus className="h-4 w-4 mr-2" />
+            <AccentButton onClick={handleAddProject} variant="lime">
+              <Plus className="h-4 w-4" />
               Add Project
-            </Button>
+            </AccentButton>
           </div>
 
           {projects.length === 0 ? (
-            <div className="text-center py-12 px-4 bg-secondary/30 rounded-xl border-2 border-dashed border-black/10">
-              <div className="h-20 w-20 rounded-xl bg-white border-2 border-black/10 flex items-center justify-center mx-auto mb-4">
-                <FolderKanban className="h-10 w-10 text-muted-foreground/60" />
+            <div className="text-center py-12 px-4 rounded-2xl border border-dashed border-black/6 bg-black/3">
+              <div className="h-20 w-20 rounded-2xl glass-card flex items-center justify-center mx-auto mb-4">
+                <FolderKanban className="h-12 w-12 text-slate-500" />
               </div>
-              <p className="text-muted-foreground mb-4">No projects created yet</p>
-              <Button onClick={handleAddProject} variant="outline" className="border-2 border-black rounded-lg">
-                <Plus className="h-4 w-4 mr-2" />
+              <p className="text-slate-600 mb-4">No projects created yet</p>
+              <AccentButton onClick={handleAddProject} variant="ghost">
+                <Plus className="h-4 w-4" />
                 Create Your First Project
-              </Button>
+              </AccentButton>
             </div>
           ) : (
             <div className="space-y-2">
               {projects.map((project) => (
                 <div
                   key={project.id}
-                  className="flex items-center gap-4 p-4 bg-white rounded-lg hover:bg-secondary/30 transition-all border-2 border-black/5 hover:border-black/10"
+                  className="glass-card glass-hover flex items-center gap-4 p-4"
                 >
                   <div className="flex-1 min-w-0">
-                    <div className="mb-0.5 truncate">{project.name}</div>
+                    <div className="mb-0.5 truncate font-medium text-slate-900">{project.name}</div>
                     {project.description && (
-                      <div className="text-sm text-muted-foreground truncate">{project.description}</div>
+                      <div className="text-sm text-slate-600 truncate">{project.description}</div>
                     )}
                   </div>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <button
-                        className="h-9 w-9 rounded-lg hover:bg-gray-100 border-2 border-transparent hover:border-gray-300 flex items-center justify-center transition-all flex-shrink-0"
+                        className="h-9 w-9 rounded-xl bg-black/3 border border-black/8 hover:bg-black/6 flex items-center justify-center transition-colors flex-shrink-0 focus-ring-cyan backdrop-blur-md text-slate-700"
+                        aria-label="More options"
                       >
                         <MoreVertical className="h-4 w-4" />
                       </button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-48 z-[100] bg-white shadow-lg border-2">
+                    <DropdownMenuContent align="end" className="w-48 z-[100] glass-card-strong border-0 p-1">
                       <DropdownMenuItem
-                        className="cursor-pointer hover:bg-gray-100"
+                        className="cursor-pointer rounded-lg focus:bg-[var(--accent-cyan)]/20"
                         onSelect={(e) => {
                           e.preventDefault();
                           handleEditProject(project);
@@ -228,7 +215,7 @@ export function Infrastructure({
               ))}
             </div>
           )}
-        </div>
+        </GlassCard>
       </div>
 
       {/* Dialogs */}

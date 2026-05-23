@@ -24,12 +24,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from './ui/select';
-import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { App, Project, Server } from '../types/app';
 import { Trash2, Globe } from 'lucide-react';
 import { toast } from 'sonner@2.0.3';
+import { AccentButton } from './ui/accent-button';
 
 interface AppManagementDialogProps {
   open: boolean;
@@ -59,6 +59,7 @@ export function AppManagementDialog({
   const [cdPath, setCdPath] = useState('');
   const [autoStopTimeout, setAutoStopTimeout] = useState('60');
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     if (app) {
@@ -78,7 +79,7 @@ export function AppManagementDialog({
     }
   }, [app, open]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!name || !projectId || !serverId || !domain || !cdPath) {
@@ -86,7 +87,6 @@ export function AppManagementDialog({
       return;
     }
 
-    // Validate domain format
     if (!domain.includes('.')) {
       toast.error('Please enter a valid domain (e.g., pharma.qms.nexgensis.com)');
       return;
@@ -107,15 +107,19 @@ export function AppManagementDialog({
       autoStopTimeout: timeout,
     };
 
-    if (app) {
-      onUpdate(app.id, appData);
-      toast.success('App updated successfully');
-    } else {
-      onSave(appData);
-      toast.success('App added successfully');
+    setIsSaving(true);
+    try {
+      if (app) {
+        await onUpdate(app.id, appData);
+        toast.success('App updated successfully');
+      } else {
+        await onSave(appData);
+        toast.success('App added successfully');
+      }
+      onOpenChange(false);
+    } finally {
+      setIsSaving(false);
     }
-
-    onOpenChange(false);
   };
 
   const handleDelete = () => {
@@ -139,7 +143,7 @@ export function AppManagementDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-[550px]">
+        <DialogContent>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Globe className="h-5 w-5" />
@@ -154,14 +158,16 @@ export function AppManagementDialog({
           <form onSubmit={handleSubmit}>
             <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto pr-2">
               <div className="grid gap-2">
-                <Label htmlFor="project">Project *</Label>
+                <Label htmlFor="project" className="text-slate-700">
+                  Project <span className="text-[var(--accent-destructive)]">*</span>
+                </Label>
                 <Select value={projectId} onValueChange={setProjectId} required>
                   <SelectTrigger id="project">
                     <SelectValue placeholder="Select a project" />
                   </SelectTrigger>
                   <SelectContent>
                     {projects.length === 0 ? (
-                      <div className="p-2 text-muted-foreground text-center">
+                      <div className="p-2 text-slate-500 text-center text-sm">
                         No projects available
                       </div>
                     ) : (
@@ -173,13 +179,15 @@ export function AppManagementDialog({
                     )}
                   </SelectContent>
                 </Select>
-                <p className="text-muted-foreground">
+                <p className="text-xs text-slate-500">
                   The project this app belongs to (e.g., QMS, EBMR)
                 </p>
               </div>
 
               <div className="grid gap-2">
-                <Label htmlFor="name">App Name *</Label>
+                <Label htmlFor="name" className="text-slate-700">
+                  App Name <span className="text-[var(--accent-destructive)]">*</span>
+                </Label>
                 <Input
                   id="name"
                   value={name}
@@ -190,7 +198,9 @@ export function AppManagementDialog({
               </div>
 
               <div className="grid gap-2">
-                <Label htmlFor="domain">Domain *</Label>
+                <Label htmlFor="domain" className="text-slate-700">
+                  Domain <span className="text-[var(--accent-destructive)]">*</span>
+                </Label>
                 <Input
                   id="domain"
                   value={domain}
@@ -198,10 +208,10 @@ export function AppManagementDialog({
                   placeholder="pharma.qms.nexgensis.com"
                   required
                 />
-                <p className="text-muted-foreground">
+                <p className="text-xs text-slate-500">
                   Opens automatically in a new tab when app starts
                   {domain && (
-                    <span className="block mt-1 text-indigo-600 dark:text-indigo-400">
+                    <span className="block mt-1 text-slate-700 font-medium">
                       Will open: {formatDomain(domain)}
                     </span>
                   )}
@@ -209,7 +219,9 @@ export function AppManagementDialog({
               </div>
 
               <div className="grid gap-2">
-                <Label htmlFor="cdPath">Compose File Path *</Label>
+                <Label htmlFor="cdPath" className="text-slate-700">
+                  Compose File Path <span className="text-[var(--accent-destructive)]">*</span>
+                </Label>
                 <Input
                   id="cdPath"
                   value={cdPath}
@@ -217,20 +229,22 @@ export function AppManagementDialog({
                   placeholder="/root/qms/qms"
                   required
                 />
-                <p className="text-muted-foreground">
+                <p className="text-xs text-slate-500">
                   Full path to the directory containing docker-compose.yml
                 </p>
               </div>
 
               <div className="grid gap-2">
-                <Label htmlFor="server">Server *</Label>
+                <Label htmlFor="server" className="text-slate-700">
+                  Server <span className="text-[var(--accent-destructive)]">*</span>
+                </Label>
                 <Select value={serverId} onValueChange={setServerId} required>
                   <SelectTrigger id="server">
                     <SelectValue placeholder="Select a server" />
                   </SelectTrigger>
                   <SelectContent>
                     {servers.length === 0 ? (
-                      <div className="p-2 text-muted-foreground text-center">
+                      <div className="p-2 text-slate-500 text-center text-sm">
                         No servers available
                       </div>
                     ) : (
@@ -242,13 +256,15 @@ export function AppManagementDialog({
                     )}
                   </SelectContent>
                 </Select>
-                <p className="text-muted-foreground">
-                  The server where this app is hosted   
+                <p className="text-xs text-slate-500">
+                  The server where this app is hosted
                 </p>
               </div>
 
               <div className="grid gap-2">
-                <Label htmlFor="autoStopTimeout">Total Run Time (minutes) *</Label>
+                <Label htmlFor="autoStopTimeout" className="text-slate-700">
+                  Total Run Time (minutes) <span className="text-[var(--accent-destructive)]">*</span>
+                </Label>
                 <Input
                   id="autoStopTimeout"
                   type="number"
@@ -258,7 +274,7 @@ export function AppManagementDialog({
                   placeholder="60"
                   required
                 />
-                <p className="text-muted-foreground">
+                <p className="text-xs text-slate-500">
                   App will automatically stop after this duration when started
                   {autoStopTimeout && parseInt(autoStopTimeout) >= 60 && (
                     <span className="block mt-1">
@@ -270,26 +286,27 @@ export function AppManagementDialog({
             </div>
             <DialogFooter className="gap-2">
               {app && (
-                <Button
+                <AccentButton
                   type="button"
                   variant="destructive"
                   onClick={() => setShowDeleteDialog(true)}
                   className="mr-auto"
                 >
-                  <Trash2 className="mr-2 h-4 w-4" />
+                  <Trash2 className="h-4 w-4" />
                   Delete
-                </Button>
+                </AccentButton>
               )}
-              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              <AccentButton type="button" variant="ghost" onClick={() => onOpenChange(false)}>
                 Cancel
-              </Button>
-              <Button 
-                type="submit" 
-                className="bg-indigo-600 hover:bg-indigo-700"
-                disabled={projects.length === 0 || servers.length === 0}
+              </AccentButton>
+              <AccentButton
+                type="submit"
+                variant="lime"
+                loading={isSaving}
+                disabled={isSaving || projects.length === 0 || servers.length === 0}
               >
                 {app ? 'Update' : 'Add'} App
-              </Button>
+              </AccentButton>
             </DialogFooter>
           </form>
         </DialogContent>

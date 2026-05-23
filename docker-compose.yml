@@ -1,29 +1,36 @@
 services:
-  postgres:
+  db:
     image: postgres:16
+    container_name: webmanager-database
     restart: always
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: runapp
-      POSTGRES_DB: runapp
+      POSTGRES_PASSWORD: nexgensis
+      POSTGRES_DB: webmanager
     ports:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U postgres -d runapp" ]
-      interval: 5s
+      test: [ "CMD-SHELL", "pg_isready -U postgres -d webmanager" ]
+      interval: 10s
       timeout: 5s
       retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 4g
 
   backend:
     build:
       context: ./backend
+    container_name: webmanager-backend
     depends_on:
-      postgres:
+      db:
         condition: service_healthy
     environment:
-      DB_DSN: "postgres://postgres:runapp@postgres:5432/runapp?sslmode=disable"
+      DB_DSN: "postgres://postgres:nexgensis@db:5432/webmanager?sslmode=disable"
       PORT: 8080
       JWT_SECRET: "r2dhNc6ePdPQBeZc5yMULGNF3/pC8ACWdMX7tkZPOiU="
       ENCRYPTION_KEY: "12345678901234567890123456789012"
@@ -39,15 +46,27 @@ services:
       SSO_ADMIN_EMAILS: sourav.kumar@nexgensis.com
     ports:
       - "8080:8080"
-    restart: unless-stopped
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 4g
 
   frontend:
     build:
       context: ./frontend
+    container_name: webmanager-frontend
     ports:
       - "10000:80"
     depends_on:
       - backend
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 4g
 
 volumes:
   pgdata:

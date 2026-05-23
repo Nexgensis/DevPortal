@@ -17,13 +17,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from './ui/alert-dialog';
-import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Textarea } from './ui/textarea';
 import { Project } from '../types/app';
 import { Trash2, FolderKanban } from 'lucide-react';
 import { toast } from 'sonner@2.0.3';
+import { AccentButton } from './ui/accent-button';
 
 interface ProjectManagementDialogProps {
   open: boolean;
@@ -45,6 +45,7 @@ export function ProjectManagementDialog({
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     if (project) {
@@ -56,7 +57,7 @@ export function ProjectManagementDialog({
     }
   }, [project, open]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!name) {
@@ -69,15 +70,19 @@ export function ProjectManagementDialog({
       description: description || undefined,
     };
 
-    if (project) {
-      onUpdate(project.id, projectData);
-      toast.success('Project updated successfully');
-    } else {
-      onSave(projectData);
-      toast.success('Project created successfully');
+    setIsSaving(true);
+    try {
+      if (project) {
+        await onUpdate(project.id, projectData);
+        toast.success('Project updated successfully');
+      } else {
+        await onSave(projectData);
+        toast.success('Project created successfully');
+      }
+      onOpenChange(false);
+    } finally {
+      setIsSaving(false);
     }
-
-    onOpenChange(false);
   };
 
   const handleDelete = () => {
@@ -92,7 +97,7 @@ export function ProjectManagementDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <FolderKanban className="h-5 w-5" />
@@ -105,9 +110,11 @@ export function ProjectManagementDialog({
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSubmit}>
-            <div className="grid gap-4 py-4">
+            <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto pr-2">
               <div className="grid gap-2">
-                <Label htmlFor="name">Project Name *</Label>
+                <Label htmlFor="name" className="text-slate-700">
+                  Project Name <span className="text-[var(--accent-destructive)]">*</span>
+                </Label>
                 <Input
                   id="name"
                   value={name}
@@ -115,13 +122,13 @@ export function ProjectManagementDialog({
                   placeholder="QMS"
                   required
                 />
-                <p className="text-muted-foreground">
+                <p className="text-xs text-slate-500">
                   A unique name for the project (e.g., QMS, EBMR, CRM)
                 </p>
               </div>
 
               <div className="grid gap-2">
-                <Label htmlFor="description">Description (Optional)</Label>
+                <Label htmlFor="description" className="text-slate-700">Description (Optional)</Label>
                 <Textarea
                   id="description"
                   value={description}
@@ -129,7 +136,7 @@ export function ProjectManagementDialog({
                   placeholder="Quality Management System applications"
                   rows={3}
                 />
-                <p className="text-muted-foreground">
+                <p className="text-xs text-slate-500">
                   Brief description of what this project contains
                 </p>
               </div>
@@ -137,22 +144,22 @@ export function ProjectManagementDialog({
 
             <DialogFooter className="gap-2">
               {project && (
-                <Button
+                <AccentButton
                   type="button"
                   variant="destructive"
                   onClick={() => setShowDeleteDialog(true)}
                   className="mr-auto"
                 >
-                  <Trash2 className="mr-2 h-4 w-4" />
+                  <Trash2 className="h-4 w-4" />
                   Delete
-                </Button>
+                </AccentButton>
               )}
-              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              <AccentButton type="button" variant="ghost" onClick={() => onOpenChange(false)}>
                 Cancel
-              </Button>
-              <Button type="submit" className="bg-indigo-600 hover:bg-indigo-700">
+              </AccentButton>
+              <AccentButton type="submit" variant="lime" loading={isSaving} disabled={isSaving}>
                 {project ? 'Update' : 'Create'} Project
-              </Button>
+              </AccentButton>
             </DialogFooter>
           </form>
         </DialogContent>

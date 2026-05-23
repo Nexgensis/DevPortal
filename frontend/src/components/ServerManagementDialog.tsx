@@ -17,13 +17,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from './ui/alert-dialog';
-import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Textarea } from './ui/textarea';
 import { Server } from '../types/app';
 import { Trash2, Server as ServerIcon, Upload, Eye, EyeOff, Key } from 'lucide-react';
 import { toast } from 'sonner@2.0.3';
+import { AccentButton } from './ui/accent-button';
 
 interface ServerManagementDialogProps {
   open: boolean;
@@ -49,6 +49,7 @@ export function ServerManagementDialog({
   const [sshPrivateKey, setSshPrivateKey] = useState('');
   const [showPrivateKey, setShowPrivateKey] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     if (server) {
@@ -83,7 +84,7 @@ export function ServerManagementDialog({
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!name || !address) {
@@ -96,8 +97,6 @@ export function ServerManagementDialog({
       return;
     }
 
-    // For new servers, private key is required
-    // For existing servers, only require if user wants to update it
     if (!server && !sshPrivateKey) {
       toast.error('SSH private key is required');
       return;
@@ -110,20 +109,23 @@ export function ServerManagementDialog({
       sshPort: parseInt(sshPort),
     };
 
-    // Only include private key if it's been set/changed
     if (sshPrivateKey) {
       serverData.sshPrivateKey = sshPrivateKey;
     }
 
-    if (server) {
-      onUpdate(server.id, serverData);
-      toast.success(sshPrivateKey ? 'Server and SSH key updated successfully' : 'Server updated successfully');
-    } else {
-      onSave(serverData);
-      toast.success('Server added successfully');
+    setIsSaving(true);
+    try {
+      if (server) {
+        await onUpdate(server.id, serverData);
+        toast.success(sshPrivateKey ? 'Server and SSH key updated successfully' : 'Server updated successfully');
+      } else {
+        await onSave(serverData);
+        toast.success('Server added successfully');
+      }
+      onOpenChange(false);
+    } finally {
+      setIsSaving(false);
     }
-
-    onOpenChange(false);
   };
 
   const handleDelete = () => {
@@ -138,7 +140,7 @@ export function ServerManagementDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-[600px]">
+        <DialogContent>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <ServerIcon className="h-5 w-5" />
@@ -153,7 +155,9 @@ export function ServerManagementDialog({
           <form onSubmit={handleSubmit}>
             <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto pr-2">
               <div className="grid gap-2">
-                <Label htmlFor="name">Server Name *</Label>
+                <Label htmlFor="name" className="text-slate-700">
+                  Server Name <span className="text-[var(--accent-destructive)]">*</span>
+                </Label>
                 <Input
                   id="name"
                   value={name}
@@ -164,7 +168,9 @@ export function ServerManagementDialog({
               </div>
 
               <div className="grid gap-2">
-                <Label htmlFor="address">Server Address (IP or Hostname) *</Label>
+                <Label htmlFor="address" className="text-slate-700">
+                  Server Address (IP or Hostname) <span className="text-[var(--accent-destructive)]">*</span>
+                </Label>
                 <Input
                   id="address"
                   value={address}
@@ -175,7 +181,9 @@ export function ServerManagementDialog({
               </div>
 
               <div className="grid gap-2">
-                <Label htmlFor="sshUser">SSH User *</Label>
+                <Label htmlFor="sshUser" className="text-slate-700">
+                  SSH User <span className="text-[var(--accent-destructive)]">*</span>
+                </Label>
                 <Input
                   id="sshUser"
                   value={sshUser}
@@ -186,7 +194,9 @@ export function ServerManagementDialog({
               </div>
 
               <div className="grid gap-2">
-                <Label htmlFor="sshPort">SSH Port *</Label>
+                <Label htmlFor="sshPort" className="text-slate-700">
+                  SSH Port <span className="text-[var(--accent-destructive)]">*</span>
+                </Label>
                 <Input
                   id="sshPort"
                   type="number"
@@ -198,22 +208,21 @@ export function ServerManagementDialog({
               </div>
 
               <div className="grid gap-2">
-                <Label htmlFor="sshPrivateKey" className="flex items-center gap-2">
+                <Label htmlFor="sshPrivateKey" className="flex items-center gap-2 text-slate-700">
                   <Key className="h-4 w-4" />
-                  SSH Private Key {server ? '(Optional - leave empty to keep existing)' : '*'}
+                  SSH Private Key {server ? '(Optional — leave empty to keep existing)' : <span className="text-[var(--accent-destructive)]">*</span>}
                 </Label>
-                
-                {/* File Upload Button */}
+
                 <div className="flex gap-2">
-                  <Button
+                  <AccentButton
                     type="button"
-                    variant="outline"
+                    variant="ghost"
                     className="flex-1"
                     onClick={() => document.getElementById('keyFileInput')?.click()}
                   >
-                    <Upload className="mr-2 h-4 w-4" />
+                    <Upload className="h-4 w-4" />
                     Upload from File
-                  </Button>
+                  </AccentButton>
                   <input
                     id="keyFileInput"
                     type="file"
@@ -221,33 +230,33 @@ export function ServerManagementDialog({
                     onChange={handleFileUpload}
                     className="hidden"
                   />
-                  <Button
+                  <AccentButton
                     type="button"
                     variant="ghost"
-                    size="icon"
+                    className="px-3"
                     onClick={() => setShowPrivateKey(!showPrivateKey)}
+                    aria-label={showPrivateKey ? 'Hide private key' : 'Show private key'}
                   >
                     {showPrivateKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </Button>
+                  </AccentButton>
                 </div>
 
-                {/* Textarea for key entry */}
                 <Textarea
                   id="sshPrivateKey"
                   value={sshPrivateKey}
                   onChange={(e) => setSshPrivateKey(e.target.value)}
-                  placeholder={server 
-                    ? "Paste new SSH private key here or leave empty to keep existing..." 
+                  placeholder={server
+                    ? "Paste new SSH private key here or leave empty to keep existing..."
                     : "-----BEGIN RSA PRIVATE KEY-----\n...\n-----END RSA PRIVATE KEY-----"}
                   className="font-mono min-h-[120px]"
                   style={{
                     WebkitTextSecurity: showPrivateKey ? 'none' : 'disc',
                     textSecurity: showPrivateKey ? 'none' : 'disc'
-                  }}
+                  } as React.CSSProperties}
                   required={!server}
                 />
-                <p className="text-muted-foreground">
-                  {server 
+                <p className="text-xs text-slate-500">
+                  {server
                     ? 'Private key is encrypted and never displayed. Upload a new key only if you want to replace it.'
                     : 'Upload your SSH private key file or paste the content above. This will be encrypted and stored securely.'}
                 </p>
@@ -256,22 +265,22 @@ export function ServerManagementDialog({
 
             <DialogFooter className="gap-2">
               {server && (
-                <Button
+                <AccentButton
                   type="button"
                   variant="destructive"
                   onClick={() => setShowDeleteDialog(true)}
                   className="mr-auto"
                 >
-                  <Trash2 className="mr-2 h-4 w-4" />
+                  <Trash2 className="h-4 w-4" />
                   Delete
-                </Button>
+                </AccentButton>
               )}
-              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              <AccentButton type="button" variant="ghost" onClick={() => onOpenChange(false)}>
                 Cancel
-              </Button>
-              <Button type="submit" className="bg-indigo-600 hover:bg-indigo-700">
+              </AccentButton>
+              <AccentButton type="submit" variant="lime" loading={isSaving} disabled={isSaving}>
                 {server ? 'Update' : 'Add'} Server
-              </Button>
+              </AccentButton>
             </DialogFooter>
           </form>
         </DialogContent>

@@ -1,0 +1,23 @@
+# Keep the Docker build context small + reproducible.
+.DS_Store
+.git
+.gitignore
+.idea
+.vscode
+
+# air's scratch — would just bloat the build context
+tmp/
+build-errors.log
+
+# Local-only env
+.env
+.env.*
+!.env.example
+
+# Test artifacts
+*_test.go
+testdata/
+
+# Editor swap files
+*.swp
+*.swo

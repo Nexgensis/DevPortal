@@ -1,0 +1,77 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: webmanager-db-dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: nexgensis
+      POSTGRES_DB: webmanager
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata-dev:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d webmanager"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    container_name: webmanager-api-dev
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DB_DSN: "postgres://postgres:nexgensis@db:5432/webmanager?sslmode=disable"
+      PORT: "8080"
+      JWT_SECRET: "dev-only-secret-do-not-use-in-prod"
+      ENCRYPTION_KEY: "12345678901234567890123456789012"
+      GIN_MODE: debug
+      SSO_ENABLED: "false"
+      # Pass through any local override via .env.dev if it exists.
+    ports:
+      - "8080:8080"
+    volumes:
+      # Source code — live edits flow into the container.
+      - ./backend:/app
+      # Module cache: shared across rebuilds, kept off the host bind-mount so it's fast.
+      - go-mod-cache:/go/pkg/mod
+      # air's scratch dir — keep the rebuilt binary off the host bind mount.
+      - api-tmp:/app/tmp
+    # Stop quickly so Ctrl+C feels responsive.
+    stop_grace_period: 5s
+
+  web:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: webmanager-web-dev
+    depends_on:
+      - api
+    environment:
+      # Vite reads this at runtime; in dev we hit the proxy instead so leave empty.
+      VITE_API_URL: ""
+      # Tells the vite dev server's /api proxy to forward to the `api` service.
+      VITE_DEV_API_PROXY: "http://api:8080"
+      IN_DOCKER: "1"
+      # Enable polling-based file watching — required on some host filesystems
+      # (Docker Desktop on Windows/macOS, WSL2). Cheap insurance.
+      CHOKIDAR_USEPOLLING: "true"
+    ports:
+      - "3000:3000"
+    volumes:
+      # Source — HMR picks up edits immediately.
+      - ./frontend:/app
+      # Critical: anonymous volume protects the container's node_modules from
+      # being shadowed by whatever the host has (often the wrong arch / OS).
+      - /app/node_modules
+    stop_grace_period: 5s
+
+volumes:
+  pgdata-dev:
+  go-mod-cache:
+  api-tmp:

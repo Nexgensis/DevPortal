@@ -1,0 +1,18 @@
+# Dev Dockerfile — Vite dev server with built-in HMR.
+# Source is volume-mounted at runtime so edits show up instantly via WebSocket HMR.
+
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Install deps once; package.json is volume-mounted later but we want them baked
+# into the image so cold starts don't reinstall every time.
+# package-lock.json is the source of truth for reproducible installs.
+COPY package.json package-lock.json* ./
+RUN npm ci
+
+EXPOSE 3000
+
+# --host 0.0.0.0 is required so Vite is reachable from outside the container.
+# --strictPort fails fast if 3000 is taken instead of silently using another port.
+CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--strictPort"]

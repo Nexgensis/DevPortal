@@ -1,0 +1,26 @@
+# Dev Dockerfile — Go backend with `air` for live reload on file changes.
+# Mount the source directory as a volume at runtime; air will rebuild + restart
+# the binary inside the container whenever a .go file changes.
+
+FROM golang:1.24-alpine
+
+# git + build deps for cgo-less Go modules; bash makes the shell pleasant inside the container.
+RUN apk add --no-cache git bash curl
+
+# Install air — Go live-reload tool. Pin the version so the dev image is reproducible.
+# (Renamed maintainer: the binary lives at github.com/air-verse/air now.)
+RUN go install github.com/air-verse/air@v1.61.5
+
+WORKDIR /app
+
+# Pre-warm the module cache so first run is fast.
+# These two files alone change rarely; copying them first lets Docker cache the
+# `go mod download` layer across rebuilds.
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Source is volume-mounted at runtime — don't COPY here.
+EXPOSE 8080
+
+# `air` reads .air.toml from the working dir; that file is also volume-mounted.
+CMD ["air", "-c", ".air.toml"]

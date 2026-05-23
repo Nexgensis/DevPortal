@@ -1,11 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Card, CardContent, CardHeader } from './ui/card';
-import { Activity, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
-import { Alert, AlertDescription } from './ui/alert';
-
-const API_BASE = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_URL)
-  ? `${import.meta.env.VITE_API_URL}/api`
-  : '/api';
+import { Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
 
 interface AuthCallbackProps {
   onAuthSuccess: (token: string) => Promise<boolean>;
@@ -18,7 +12,6 @@ export function AuthCallback({ onAuthSuccess }: AuthCallbackProps) {
   useEffect(() => {
     const handleCallback = async () => {
       try {
-        // Get token from URL params
         const params = new URLSearchParams(window.location.search);
         const token = params.get('token');
 
@@ -26,14 +19,11 @@ export function AuthCallback({ onAuthSuccess }: AuthCallbackProps) {
           throw new Error('No authentication token received');
         }
 
-        // Validate and store the token
         const success = await onAuthSuccess(token);
 
         if (success) {
           setStatus('success');
           setMessage('Successfully authenticated!');
-
-          // Redirect to main app after a brief delay
           setTimeout(() => {
             window.location.href = '/';
           }, 1500);
@@ -43,8 +33,6 @@ export function AuthCallback({ onAuthSuccess }: AuthCallbackProps) {
       } catch (err) {
         setStatus('error');
         setMessage(err instanceof Error ? err.message : 'Authentication failed');
-
-        // Redirect to login after delay
         setTimeout(() => {
           window.location.href = '/';
         }, 3000);
@@ -54,43 +42,45 @@ export function AuthCallback({ onAuthSuccess }: AuthCallbackProps) {
     handleCallback();
   }, [onAuthSuccess]);
 
+  const iconBg =
+    status === 'success'
+      ? 'bg-[var(--accent-pink)]'
+      : status === 'error'
+        ? 'bg-[var(--accent-destructive)]'
+        : 'bg-[var(--accent-peach)]';
+
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-white">
-      <Card className="w-full max-w-md bento-card">
-        <CardHeader className="space-y-6 pt-12">
-          <div className="flex justify-center">
-            <div className="h-20 w-20 rounded-xl bg-accent border-3 border-black flex items-center justify-center">
-              {status === 'loading' && <Loader2 className="h-10 w-10 text-black animate-spin" />}
-              {status === 'success' && <CheckCircle2 className="h-10 w-10 text-black" />}
-              {status === 'error' && <AlertCircle className="h-10 w-10 text-black" />}
-            </div>
+    <div className="min-h-screen flex items-center justify-center p-4">
+      <div className="w-full max-w-md bento-card p-8 lg:p-10">
+        <div className="flex justify-center mb-6">
+          <div className={`h-20 w-20 rounded-2xl flex items-center justify-center ${iconBg}`}>
+            {status === 'loading' && <Loader2 className="h-10 w-10 text-[var(--ink)] animate-spin" />}
+            {status === 'success' && <CheckCircle2 className="h-10 w-10 text-[var(--ink)]" />}
+            {status === 'error' && <AlertCircle className="h-10 w-10 text-white" />}
           </div>
-        </CardHeader>
-        <CardContent className="pb-12">
-          <div className="space-y-5">
-            {status === 'loading' && (
-              <div className="text-center">
-                <p className="text-lg font-medium mb-2">Authenticating...</p>
-                <p className="text-sm text-muted-foreground">{message}</p>
-              </div>
-            )}
+        </div>
 
-            {status === 'success' && (
-              <Alert className="rounded-lg border-2 border-[#10B981] bg-[#10B981]/10">
-                <CheckCircle2 className="h-4 w-4 text-[#10B981]" />
-                <AlertDescription className="text-[#10B981]">{message}</AlertDescription>
-              </Alert>
-            )}
-
-            {status === 'error' && (
-              <Alert variant="destructive" className="rounded-lg border-2 border-[#EF4444] bg-[#EF4444]/10">
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription>{message}</AlertDescription>
-              </Alert>
-            )}
+        {status === 'loading' && (
+          <div className="text-center">
+            <p className="text-lg font-medium mb-2 text-[var(--ink)]">Authenticating…</p>
+            <p className="text-sm text-[var(--ink-muted)]">{message}</p>
           </div>
-        </CardContent>
-      </Card>
+        )}
+
+        {status === 'success' && (
+          <div className="flex items-start gap-2 rounded-xl px-3.5 py-3 text-sm bg-[var(--accent-pink-soft)] border border-[color-mix(in_srgb,var(--accent-pink)_30%,transparent)] text-[var(--ink)]">
+            <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0" />
+            <span>{message}</span>
+          </div>
+        )}
+
+        {status === 'error' && (
+          <div className="flex items-start gap-2 rounded-xl px-3.5 py-3 text-sm bg-[var(--accent-destructive-soft)] border border-[color-mix(in_srgb,var(--accent-destructive)_25%,transparent)] text-[var(--accent-destructive)]">
+            <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+            <span>{message}</span>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -155,8 +156,9 @@ func MicrosoftCallback(db *gorm.DB) gin.HandlerFunc {
 		// Log the action
 		services.LogAuthAction(db, c, "sso_login", user.Username)
 
-		// Redirect to frontend with token
-		frontendURL := os.Getenv("FRONTEND_URL")
+		// Redirect to frontend with token — frontendURL was declared earlier
+		// in this same handler (around line 99) for the secure-cookie check.
+		frontendURL = os.Getenv("FRONTEND_URL")
 		if frontendURL == "" {
 			frontendURL = "http://localhost:5173"
 		}
