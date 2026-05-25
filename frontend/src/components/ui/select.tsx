@@ -42,11 +42,11 @@ function SelectTrigger({
       data-size={size}
       className={cn(
         "flex w-full items-center justify-between gap-2 rounded-xl px-3.5 py-2 text-sm whitespace-nowrap",
-        "bg-black/5 border border-black/8 backdrop-blur-md text-slate-900",
-        "data-[placeholder]:text-slate-500 [&_svg:not([class*='text-'])]:text-slate-500",
+        "bg-[color-mix(in_srgb,var(--ink)_5%,transparent)] border border-[var(--border)] backdrop-blur-md text-[var(--ink)]",
+        "data-[placeholder]:text-[var(--ink-muted)] [&_svg:not([class*='text-'])]:text-[var(--ink-muted)]",
         "transition-[border-color,background,box-shadow] outline-none",
         "hover:bg-black/8",
-        "focus-visible:bg-white focus-visible:border-[var(--accent-cyan)] focus-visible:shadow-[0_0_0_3px_color-mix(in_srgb,var(--accent-cyan)_25%,transparent)]",
+        "focus-visible:bg-[var(--card)] focus-visible:border-[var(--accent-cyan)] focus-visible:shadow-[0_0_0_3px_color-mix(in_srgb,var(--accent-cyan)_25%,transparent)]",
         "aria-invalid:border-[var(--accent-destructive)] aria-invalid:shadow-[0_0_0_3px_color-mix(in_srgb,var(--accent-destructive)_20%,transparent)]",
         "disabled:cursor-not-allowed disabled:opacity-50",
         "data-[size=default]:h-10 data-[size=sm]:h-8",
@@ -76,7 +76,7 @@ function SelectContent({
         data-slot="select-content"
         className={cn(
           "relative z-50 max-h-(--radix-select-content-available-height) min-w-[8rem] origin-(--radix-select-content-transform-origin) overflow-x-hidden overflow-y-auto rounded-2xl",
-          "glass-card-strong p-1 text-slate-900",
+          "glass-card-strong p-1 text-[var(--ink)]",
           "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
           "data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
           position === "popper" &&
@@ -125,8 +125,8 @@ function SelectItem({
       data-slot="select-item"
       className={cn(
         "relative flex w-full cursor-default items-center gap-2 rounded-lg py-2 pr-8 pl-3 text-sm select-none outline-hidden",
-        "text-slate-800 [&_svg:not([class*='text-'])]:text-slate-500",
-        "focus:bg-[var(--accent-cyan)]/20 focus:text-slate-900",
+        "text-[var(--ink)] [&_svg:not([class*='text-'])]:text-[var(--ink-muted)]",
+        "focus:bg-[var(--accent-cyan)]/20 focus:text-[var(--ink)]",
         "data-[state=checked]:bg-[var(--accent-lime)]/20",
         "data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
         "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 *:[span]:last:flex *:[span]:last:items-center *:[span]:last:gap-2",

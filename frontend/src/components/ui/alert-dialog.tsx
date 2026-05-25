@@ -103,7 +103,7 @@ function AlertDialogTitle({
   return (
     <AlertDialogPrimitive.Title
       data-slot="alert-dialog-title"
-      className={cn("text-lg font-semibold text-slate-900", className)}
+      className={cn("text-lg font-semibold text-[var(--ink)]", className)}
       {...props}
     />
   );
@@ -116,7 +116,7 @@ function AlertDialogDescription({
   return (
     <AlertDialogPrimitive.Description
       data-slot="alert-dialog-description"
-      className={cn("text-sm text-slate-600", className)}
+      className={cn("text-sm text-[var(--ink-muted)]", className)}
       {...props}
     />
   );
@@ -149,7 +149,7 @@ function AlertDialogCancel({
     <AlertDialogPrimitive.Cancel
       className={cn(
         baseActionClasses,
-        "bg-black/4 text-slate-700 hover:bg-black/8 border border-black/8 backdrop-blur-md",
+        "bg-black/4 text-[var(--ink)] hover:bg-black/8 border border-black/8 backdrop-blur-md",
         className,
       )}
       {...props}

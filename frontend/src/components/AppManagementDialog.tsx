@@ -158,7 +158,7 @@ export function AppManagementDialog({
           <form onSubmit={handleSubmit}>
             <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto pr-2">
               <div className="grid gap-2">
-                <Label htmlFor="project" className="text-slate-700">
+                <Label htmlFor="project" className="text-[var(--ink)]">
                   Project <span className="text-[var(--accent-destructive)]">*</span>
                 </Label>
                 <Select value={projectId} onValueChange={setProjectId} required>
@@ -167,7 +167,7 @@ export function AppManagementDialog({
                   </SelectTrigger>
                   <SelectContent>
                     {projects.length === 0 ? (
-                      <div className="p-2 text-slate-500 text-center text-sm">
+                      <div className="p-2 text-[var(--ink-muted)] text-center text-sm">
                         No projects available
                       </div>
                     ) : (
@@ -179,13 +179,13 @@ export function AppManagementDialog({
                     )}
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-[var(--ink-muted)]">
                   The project this app belongs to (e.g., QMS, EBMR)
                 </p>
               </div>
 
               <div className="grid gap-2">
-                <Label htmlFor="name" className="text-slate-700">
+                <Label htmlFor="name" className="text-[var(--ink)]">
                   App Name <span className="text-[var(--accent-destructive)]">*</span>
                 </Label>
                 <Input
@@ -198,7 +198,7 @@ export function AppManagementDialog({
               </div>
 
               <div className="grid gap-2">
-                <Label htmlFor="domain" className="text-slate-700">
+                <Label htmlFor="domain" className="text-[var(--ink)]">
                   Domain <span className="text-[var(--accent-destructive)]">*</span>
                 </Label>
                 <Input
@@ -208,10 +208,10 @@ export function AppManagementDialog({
                   placeholder="pharma.qms.nexgensis.com"
                   required
                 />
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-[var(--ink-muted)]">
                   Opens automatically in a new tab when app starts
                   {domain && (
-                    <span className="block mt-1 text-slate-700 font-medium">
+                    <span className="block mt-1 text-[var(--ink)] font-medium">
                       Will open: {formatDomain(domain)}
                     </span>
                   )}
@@ -219,7 +219,7 @@ export function AppManagementDialog({
               </div>
 
               <div className="grid gap-2">
-                <Label htmlFor="cdPath" className="text-slate-700">
+                <Label htmlFor="cdPath" className="text-[var(--ink)]">
                   Compose File Path <span className="text-[var(--accent-destructive)]">*</span>
                 </Label>
                 <Input
@@ -229,13 +229,13 @@ export function AppManagementDialog({
                   placeholder="/root/qms/qms"
                   required
                 />
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-[var(--ink-muted)]">
                   Full path to the directory containing docker-compose.yml
                 </p>
               </div>
 
               <div className="grid gap-2">
-                <Label htmlFor="server" className="text-slate-700">
+                <Label htmlFor="server" className="text-[var(--ink)]">
                   Server <span className="text-[var(--accent-destructive)]">*</span>
                 </Label>
                 <Select value={serverId} onValueChange={setServerId} required>
@@ -244,7 +244,7 @@ export function AppManagementDialog({
                   </SelectTrigger>
                   <SelectContent>
                     {servers.length === 0 ? (
-                      <div className="p-2 text-slate-500 text-center text-sm">
+                      <div className="p-2 text-[var(--ink-muted)] text-center text-sm">
                         No servers available
                       </div>
                     ) : (
@@ -256,13 +256,13 @@ export function AppManagementDialog({
                     )}
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-[var(--ink-muted)]">
                   The server where this app is hosted
                 </p>
               </div>
 
               <div className="grid gap-2">
-                <Label htmlFor="autoStopTimeout" className="text-slate-700">
+                <Label htmlFor="autoStopTimeout" className="text-[var(--ink)]">
                   Total Run Time (minutes) <span className="text-[var(--accent-destructive)]">*</span>
                 </Label>
                 <Input
@@ -274,7 +274,7 @@ export function AppManagementDialog({
                   placeholder="60"
                   required
                 />
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-[var(--ink-muted)]">
                   App will automatically stop after this duration when started
                   {autoStopTimeout && parseInt(autoStopTimeout) >= 60 && (
                     <span className="block mt-1">

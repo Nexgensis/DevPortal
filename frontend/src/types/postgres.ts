@@ -20,7 +20,22 @@ export interface PostgresDumpRequest {
   server_id: string;
   container_id: string;
   database: string;
-  data_only?: boolean;
-  schema_only?: boolean;
-  tables?: string[];
+  /** Resolves stored credentials (keyed by name) for explicit-user dumps. */
+  container_name?: string;
+}
+
+/** Admin-configured PostgreSQL credentials for a container (password never returned). */
+export interface PostgresCredential {
+  containerName: string;
+  dbUser: string;
+  dbName: string;
+  hasPassword: boolean;
+}
+
+/** Payload to create/update a credential. dbPassword blank on update keeps the stored secret. */
+export interface PostgresCredentialInput {
+  containerName: string;
+  dbUser: string;
+  dbName: string;
+  dbPassword?: string;
 }

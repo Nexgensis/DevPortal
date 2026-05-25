@@ -168,7 +168,7 @@ export function AppCard({ app, server, project, onUpdateApp, onStartApp, onStopA
       {/* Primary Name + Status */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-0.5">
-          <span className="truncate font-medium text-slate-900">{app.name}</span>
+          <span className="truncate font-medium text-[var(--ink)]">{app.name}</span>
           <StatusBadge status={app.status === 'running' ? 'running' : 'stopped'} />
         </div>
 
@@ -177,7 +177,7 @@ export function AppCard({ app, server, project, onUpdateApp, onStartApp, onStopA
           href={formatDomain(app.domain)}
           target="_blank"
           rel="noopener noreferrer"
-          className="text-sm text-slate-600 hover:text-slate-900 hover:underline truncate flex items-center gap-1.5 w-fit max-w-full"
+          className="text-sm text-[var(--ink-muted)] hover:text-[var(--ink)] hover:underline truncate flex items-center gap-1.5 w-fit max-w-full"
           onClick={(e) => e.stopPropagation()}
         >
           <Globe className="h-3.5 w-3.5 flex-shrink-0" />
@@ -189,7 +189,7 @@ export function AppCard({ app, server, project, onUpdateApp, onStartApp, onStopA
       {/* Key Metrics */}
       <div className="flex items-center gap-4 flex-shrink-0">
         {/* Runtime - Editable */}
-        <div className="flex items-center gap-2 text-sm text-slate-600">
+        <div className="flex items-center gap-2 text-sm text-[var(--ink-muted)]">
           <Clock className="h-4 w-4" />
           {isEditingTimeout ? (
             <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
@@ -231,7 +231,7 @@ export function AppCard({ app, server, project, onUpdateApp, onStartApp, onStopA
                 setIsEditingTimeout(true);
                 setNewTimeout((app.autoStopTimeout ?? 60).toString());
               }}
-              className="hover:text-slate-900 flex items-center gap-1 rounded-md px-1 py-0.5 hover:bg-black/4 transition-colors"
+              className="hover:text-[var(--ink)] flex items-center gap-1 rounded-md px-1 py-0.5 hover:bg-black/4 transition-colors"
             >
               <span>Runtime: {formatRunTime(app.autoStopTimeout ?? 60)}</span>
               <Edit2 className="h-3 w-3" />
@@ -241,8 +241,8 @@ export function AppCard({ app, server, project, onUpdateApp, onStartApp, onStopA
 
         {/* Server Status */}
         <div className="flex items-center gap-2">
-          <ServerIcon className="h-4 w-4 text-slate-500" />
-          <span className="text-sm text-slate-600">{server?.name || 'Unknown'}</span>
+          <ServerIcon className="h-4 w-4 text-[var(--ink-muted)]" />
+          <span className="text-sm text-[var(--ink-muted)]">{server?.name || 'Unknown'}</span>
           {server && (
             <StatusBadge status={server.status === 'online' ? 'online' : 'offline'} />
           )}
@@ -294,7 +294,7 @@ export function AppCard({ app, server, project, onUpdateApp, onStartApp, onStopA
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
-                className="h-10 w-10 rounded-xl bg-black/3 border border-black/8 hover:bg-black/6 flex items-center justify-center transition-colors focus-ring-cyan backdrop-blur-md text-slate-700"
+                className="h-10 w-10 rounded-xl bg-black/3 border border-black/8 hover:bg-black/6 flex items-center justify-center transition-colors focus-ring-cyan backdrop-blur-md text-[var(--ink)]"
                 onClick={(e) => e.stopPropagation()}
                 aria-label="More options"
               >

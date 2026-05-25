@@ -44,8 +44,8 @@ function TabsTrigger({
       data-slot="tabs-trigger"
       className={cn(
         "inline-flex h-full items-center justify-center gap-1.5 px-4 text-sm font-medium",
-        "rounded-full whitespace-nowrap text-slate-600 transition-all duration-200",
-        "hover:bg-black/5 hover:text-slate-900",
+        "rounded-full whitespace-nowrap text-[var(--ink-muted)] transition-all duration-200",
+        "hover:bg-black/5 hover:text-[var(--ink)]",
         "data-[state=active]:bg-[var(--accent-lime)] data-[state=active]:text-[#0A0B14] data-[state=active]:shadow-[0_2px_12px_rgba(163,255,18,0.35)]",
         "focus-ring-cyan disabled:pointer-events-none disabled:opacity-50",
         "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",

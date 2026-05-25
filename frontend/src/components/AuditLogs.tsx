@@ -16,7 +16,7 @@ const ACTION_COLOR_CLASSES = {
   create: 'bg-[color-mix(in_srgb,var(--accent-cyan)_18%,transparent)] text-cyan-300 border-[color-mix(in_srgb,var(--accent-cyan)_40%,transparent)]',
   update: 'bg-amber-500/15 text-amber-300 border-amber-300/60',
   delete: 'bg-[color-mix(in_srgb,var(--accent-destructive)_14%,transparent)] text-red-300 border-[color-mix(in_srgb,var(--accent-destructive)_36%,transparent)]',
-  neutral: 'bg-black/5 text-slate-700 border-black/8',
+  neutral: 'bg-black/5 text-[var(--ink)] border-black/8',
 };
 
 export function AuditLogs() {
@@ -82,7 +82,7 @@ export function AuditLogs() {
       case 'delete_user':
         return <Trash2 className="h-4 w-4 text-red-300" />;
       default:
-        return <FileText className="h-4 w-4 text-slate-500" />;
+        return <FileText className="h-4 w-4 text-[var(--ink-muted)]" />;
     }
   };
 
@@ -113,18 +113,18 @@ export function AuditLogs() {
     `inline-flex items-center justify-center h-9 min-w-9 px-3 rounded-xl text-sm font-medium transition-colors focus-ring-cyan ${
       active
         ? 'bg-[var(--accent-lime)] text-[#0A0B14] shadow-[0_3px_12px_rgba(163,255,18,0.35)]'
-        : 'bg-black/4 text-slate-700 hover:bg-black/8 border border-black/8 backdrop-blur-md'
+        : 'bg-black/4 text-[var(--ink)] hover:bg-black/8 border border-black/8 backdrop-blur-md'
     } disabled:opacity-50 disabled:cursor-not-allowed`;
 
   return (
     <GlassCard>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h2 className="flex items-center gap-2 text-xl font-semibold text-slate-900">
+          <h2 className="flex items-center gap-2 text-xl font-semibold text-[var(--ink)]">
             <FileText className="h-6 w-6" />
             Audit Logs
           </h2>
-          <p className="text-sm text-slate-600 mt-1">
+          <p className="text-sm text-[var(--ink-muted)] mt-1">
             Track all system activities and changes
           </p>
         </div>
@@ -193,16 +193,16 @@ export function AuditLogs() {
 
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-0.5">
-                    <User className="h-4 w-4 text-slate-500 flex-shrink-0" />
-                    <span className="truncate font-medium text-slate-900">{log.username}</span>
-                    <span className="text-slate-500 flex-shrink-0">•</span>
-                    <span className="truncate text-slate-700">{log.resourceName}</span>
-                    <Badge variant="secondary" className="flex-shrink-0 bg-black/5 text-slate-700 border border-black/8">
+                    <User className="h-4 w-4 text-[var(--ink-muted)] flex-shrink-0" />
+                    <span className="truncate font-medium text-[var(--ink)]">{log.username}</span>
+                    <span className="text-[var(--ink-muted)] flex-shrink-0">•</span>
+                    <span className="truncate text-[var(--ink)]">{log.resourceName}</span>
+                    <Badge variant="secondary" className="flex-shrink-0 bg-black/5 text-[var(--ink)] border border-black/8">
                       {log.resourceType}
                     </Badge>
                   </div>
 
-                  <div className="text-sm text-slate-600 truncate">
+                  <div className="text-sm text-[var(--ink-muted)] truncate">
                     {log.details}
                     {formatDuration(log.details) && (
                       <span className="ml-2 text-amber-300">
@@ -213,7 +213,7 @@ export function AuditLogs() {
                 </div>
               </div>
 
-              <div className="text-right text-xs text-slate-500 flex-shrink-0">
+              <div className="text-right text-xs text-[var(--ink-muted)] flex-shrink-0">
                 <div>{new Date(log.createdAt).toLocaleDateString()}</div>
                 <div>{new Date(log.createdAt).toLocaleTimeString()}</div>
               </div>
@@ -223,10 +223,10 @@ export function AuditLogs() {
           {filteredLogs.length === 0 && !isLoading && (
             <div className="text-center py-16 px-4 rounded-2xl border border-dashed border-black/6 bg-black/3">
               <div className="h-24 w-24 rounded-2xl glass-card flex items-center justify-center mx-auto mb-4">
-                <FileText className="h-12 w-12 text-slate-500" />
+                <FileText className="h-12 w-12 text-[var(--ink-muted)]" />
               </div>
-              <h3 className="mb-2 text-lg font-semibold text-slate-900">No Audit Logs Available</h3>
-              <p className="text-slate-600 mb-4 max-w-md mx-auto">
+              <h3 className="mb-2 text-lg font-semibold text-[var(--ink)]">No Audit Logs Available</h3>
+              <p className="text-[var(--ink-muted)] mb-4 max-w-md mx-auto">
                 No logs found matching your filters.
               </p>
             </div>
@@ -238,7 +238,7 @@ export function AuditLogs() {
       {total > 0 && (
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6 pt-6 border-t border-black/6">
           <div className="flex items-center gap-4">
-            <div className="text-sm text-slate-600">
+            <div className="text-sm text-[var(--ink-muted)]">
               Showing {(currentPage - 1) * pageSize + 1} to {Math.min(currentPage * pageSize, total)} of {total} logs
             </div>
             <Select value={pageSize.toString()} onValueChange={(value) => setPageSize(Number(value))}>
@@ -281,7 +281,7 @@ export function AuditLogs() {
                     );
                     if (startPage > 2) {
                       pages.push(
-                        <span key="ellipsis-start" className="px-2 text-slate-500">…</span>
+                        <span key="ellipsis-start" className="px-2 text-[var(--ink-muted)]">…</span>
                       );
                     }
                   }
@@ -297,7 +297,7 @@ export function AuditLogs() {
                   if (endPage < totalPages) {
                     if (endPage < totalPages - 1) {
                       pages.push(
-                        <span key="ellipsis-end" className="px-2 text-slate-500">…</span>
+                        <span key="ellipsis-end" className="px-2 text-[var(--ink-muted)]">…</span>
                       );
                     }
                     pages.push(

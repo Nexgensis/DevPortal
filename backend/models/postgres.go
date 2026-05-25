@@ -22,12 +22,14 @@ type PostgresDatabase struct {
 	Size     string `json:"size,omitempty"`
 }
 
-// PostgresDumpRequest represents a database dump request
+// PostgresDumpRequest represents a database dump request. Dumps always use the
+// custom binary archive format (pg_dump -F c), so no per-request format flags
+// are needed.
 type PostgresDumpRequest struct {
-	ServerID    string   `json:"server_id" binding:"required"`
-	ContainerID string   `json:"container_id" binding:"required"`
-	Database    string   `json:"database" binding:"required"`
-	DataOnly    bool     `json:"data_only"`
-	SchemaOnly  bool     `json:"schema_only"`
-	Tables      []string `json:"tables,omitempty"`
+	ServerID    string `json:"server_id" binding:"required"`
+	ContainerID string `json:"container_id" binding:"required"`
+	Database    string `json:"database" binding:"required"`
+	// ContainerName resolves stored credentials (keyed by name). Optional —
+	// empty falls back to superuser auto-detection.
+	ContainerName string `json:"container_name"`
 }

@@ -100,13 +100,6 @@ func Verify(db *gorm.DB) gin.HandlerFunc {
 	}
 }
 
-func Logout(c *gin.Context) {
-	// In a real application, you would typically invalidate the JWT token on the client-side
-	// or implement a token blacklist on the server-side if necessary.
-	// For this example, we'll just return a success message.
-	c.JSON(http.StatusOK, gin.H{"message": "Logged out successfully"})
-}
-
 func Register(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var input RegisterInput

@@ -13,15 +13,16 @@ type AccentButtonProps = Omit<React.ComponentProps<'button'>, 'ref'> & {
   loading?: boolean;
 };
 
+const PRIMARY = 'bg-[var(--accent-pink)] text-[var(--on-accent)] hover:brightness-95 border border-transparent';
 const VARIANT: Record<AccentVariant, string> = {
-  pink: 'bg-[var(--accent-pink)] text-[var(--ink)] hover:brightness-95 border border-[color-mix(in_srgb,var(--accent-pink)_60%,transparent)]',
+  pink: PRIMARY,
   ghost:
-    'bg-[var(--card)] text-[var(--ink)] hover:bg-[rgba(26,22,18,0.04)] border border-[var(--border)]',
+    'bg-[var(--card)] text-[var(--ink)] hover:bg-[color-mix(in_srgb,var(--ink)_6%,transparent)] border border-[var(--border)]',
   destructive:
-    'bg-[var(--accent-destructive)] text-white hover:brightness-95 border border-[color-mix(in_srgb,var(--accent-destructive)_60%,transparent)]',
-  // legacy aliases → pink
-  lime: 'bg-[var(--accent-pink)] text-[var(--ink)] hover:brightness-95 border border-[color-mix(in_srgb,var(--accent-pink)_60%,transparent)]',
-  cyan: 'bg-[var(--accent-pink)] text-[var(--ink)] hover:brightness-95 border border-[color-mix(in_srgb,var(--accent-pink)_60%,transparent)]',
+    'bg-[var(--accent-destructive)] text-[var(--on-accent)] hover:brightness-95 border border-transparent',
+  // legacy aliases → primary
+  lime: PRIMARY,
+  cyan: PRIMARY,
 };
 
 const SIZE: Record<AccentSize, string> = {

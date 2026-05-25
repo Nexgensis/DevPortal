@@ -60,6 +60,11 @@
       // Don't auto-open a browser inside a Docker container — there's nothing to open.
       open: !process.env.IN_DOCKER,
       host: true,
+      // Docker bind-mounts on Linux don't propagate inotify events into the
+      // container, so Vite's native file watcher never sees host edits and HMR
+      // goes silent. Polling forces the watcher to re-stat files so edits made
+      // on the host actually hot-reload the browser tab.
+      watch: { usePolling: true, interval: 150 },
       proxy: {
         '/api': {
           // VITE_DEV_API_PROXY is set in docker-compose.dev.yml to point at the

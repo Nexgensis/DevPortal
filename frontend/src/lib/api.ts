@@ -315,15 +315,12 @@ export const postgresApi = {
         server_id: string;
         container_id: string;
         database: string;
-        data_only?: boolean;
-        schema_only?: boolean;
-        tables?: string[];
     }): Promise<Blob> {
         const response = await fetch(`${API_BASE}/postgres/dump`, {
             method: 'POST',
             headers: {
                 ...getAuthHeaders(),
-                'Accept': 'application/sql',
+                'Accept': 'application/octet-stream',
             } as any,
             body: JSON.stringify(request),
         });

@@ -45,7 +45,7 @@ func main() {
 	}
 
 	// Auto-migrate models
-	db.AutoMigrate(&models.User{}, &models.Server{}, &models.Project{}, &models.App{}, &models.AuditLog{})
+	db.AutoMigrate(&models.User{}, &models.Server{}, &models.Project{}, &models.App{}, &models.AuditLog{}, &models.PostgresCredential{})
 
 	// Run migrations
 	if err := migrations.CreateDefaultUsers(db); err != nil {
@@ -54,6 +54,10 @@ func main() {
 	
 	if err := migrations.AddTimerEndsAtColumn(db); err != nil {
 		log.Fatalf("Failed to add timer_ends_at column: %v", err)
+	}
+
+	if err := migrations.DropSSHColumns(db); err != nil {
+		log.Fatalf("Failed to drop legacy SSH columns: %v", err)
 	}
 
 	// Start background timer service for auto-stopping apps

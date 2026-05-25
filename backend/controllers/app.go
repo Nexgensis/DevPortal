@@ -33,18 +33,6 @@ func CreateApp(db *gorm.DB) gin.HandlerFunc {
 	}
 }
 
-func GetApp(db *gorm.DB) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		id := c.Param("id")
-		var app models.App
-		if result := db.First(&app, "id = ?", id); result.Error != nil {
-			respondWithError(c, http.StatusNotFound, "App not found")
-			return
-		}
-		c.JSON(http.StatusOK, app)
-	}
-}
-
 func UpdateApp(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Param("id")

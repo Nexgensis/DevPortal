@@ -6,30 +6,53 @@
 
 :root {
   --font-size: 16px;
+  /* Nexus Aura type system: editorial serif headings + geometric sans body. */
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-serif: 'Newsreader', 'Merriweather', Georgia, 'Times New Roman', serif;
 
-  /* === Palette: white canvas, dark sidebar, warm-tinted cards ============== */
-  --canvas: #FFFFFF;
-  --canvas-soft: #FAF6F0;          /* used for warm-tinted card variants only */
-  --card: #FFFFFF;                  /* default card = matches main bg */
-  --card-warm: #FAF6F0;             /* card with subtle warm tint */
-  --sidebar-bg: #241D18;            /* warm dark for sidebar */
-  --sidebar-fg-soft: rgba(255, 246, 235, 0.65);
-  --ink: #1A1612;
-  --ink-muted: rgba(26, 22, 18, 0.55);
+  /* === LIGHT THEME — soft cream page, flat white cards, vibrant accents ==== */
+  --canvas: #FDFBF7;                /* page background */
+  --canvas-soft: #F1F3F8;
+  --card: #FFFFFF;                  /* main card + active tab + inner surfaces */
+  --card-warm: #F9FAFB;
+  --ink: #1A1A1E;                   /* charcoal text */
+  --ink-muted: rgba(26, 26, 30, 0.55);
+  --border: rgba(26, 26, 30, 0.10);
+  --grid-line: rgba(26, 26, 30, 0.055);
+  --dot: rgba(26, 26, 30, 0.14);    /* dot-matrix page background dots */
+  --on-accent: #FFFFFF;             /* text on vibrant accent fills */
+  --glow-peach: rgba(244, 184, 154, 0.22);  /* diffused canvas mesh glows */
+  --glow-pink: rgba(244, 158, 181, 0.18);
+  /* Animated "Aura" mesh-gradient blobs — pale peach / lavender / soft mint */
+  --aura-1: #FFE0CC;
+  --aura-2: #DCE4FF;
+  --aura-3: #D6F5E5;
 
-  --accent-pink: #F49EB5;
-  --accent-pink-soft: #FBD5DF;
-  --accent-peach: #F4B89A;
-  --accent-peach-soft: #FBE2D3;
-  --accent-green: #7FB069;
-  --accent-green-soft: #E6F2DC;
-  --accent-destructive: #D14242;
-  --accent-destructive-soft: #FBE3E3;
+  /* Vibrant accents */
+  --accent-pink: #2563EB;           /* PRIMARY = electric blue (token name kept) */
+  --accent-pink-soft: #DBEAFE;
+  --accent-peach: #FF5A5F;          /* hot coral */
+  --accent-peach-soft: #FFE4E5;
+  --accent-green: #10B981;          /* emerald — online/active status */
+  --accent-green-soft: #D1FAE5;
+  --accent-destructive: #EF4444;
+  --accent-destructive-soft: #FEE2E2;
+
+  /* Folder shell + per-tab colors (themed) */
+  --folder-bg: var(--canvas);       /* grid-paper page base */
+  --folder-cream: var(--card);      /* folder body + active tab = the card color */
+  --tab-apps: #EA4335;              /* Google red */
+  --tab-db: #4285F4;                /* Google blue */
+  --tab-infra: #FBBC05;             /* Google amber */
+  --tab-users: #A04EF6;             /* deep purple */
+  --tab-audit: #34A853;             /* Google green */
 
   /* Legacy aliases (kept so untouched components don't break) */
   --accent-lime: var(--accent-pink);
   --accent-mint: var(--accent-peach);
   --accent-cyan: var(--accent-peach);
+  --sidebar-bg: #111319;            /* unused (folder layout) */
+  --sidebar-fg-soft: rgba(255, 255, 255, 0.65);
 
   /* shadcn token aliases mapped to the warm palette */
   --background: var(--canvas);
@@ -38,21 +61,20 @@
   --popover: var(--card);
   --popover-foreground: var(--ink);
   --primary: var(--accent-pink);
-  --primary-foreground: var(--ink);
-  --secondary: rgba(26, 22, 18, 0.05);
+  --primary-foreground: var(--on-accent);
+  --secondary: color-mix(in srgb, var(--ink) 5%, transparent);
   --secondary-foreground: var(--ink);
-  --muted: rgba(26, 22, 18, 0.04);
+  --muted: color-mix(in srgb, var(--ink) 4%, transparent);
   --muted-foreground: var(--ink-muted);
   --accent: var(--accent-pink-soft);
   --accent-foreground: var(--ink);
   --destructive: var(--accent-destructive);
-  --destructive-foreground: #FFFFFF;
+  --destructive-foreground: var(--on-accent);
   --success: var(--accent-green);
-  --success-foreground: #FFFFFF;
-  --border: rgba(26, 22, 18, 0.08);
-  --input: rgba(26, 22, 18, 0.10);
+  --success-foreground: var(--on-accent);
+  --input: color-mix(in srgb, var(--ink) 10%, transparent);
   --input-background: var(--card);
-  --switch-background: rgba(26, 22, 18, 0.12);
+  --switch-background: color-mix(in srgb, var(--ink) 12%, transparent);
   --font-weight-medium: 600;
   --font-weight-normal: 400;
   --ring: var(--accent-pink);
@@ -76,7 +98,49 @@
   --text-secondary: var(--ink-muted);
 }
 
+/* === DARK THEME — elegant charcoal, sleek dark card, neon accents ========= */
+.dark {
+  --canvas: #1A1A1E;
+  --canvas-soft: #232329;
+  --card: #252529;                  /* main card + active tab + inner surfaces */
+  --card-warm: #2C2C33;
+  --ink: #F5F5F7;                   /* crisp near-white text */
+  --ink-muted: rgba(245, 245, 247, 0.55);
+  --border: rgba(245, 245, 247, 0.12);
+  --grid-line: rgba(245, 245, 247, 0.04);
+  --dot: rgba(245, 245, 247, 0.10);  /* dot-matrix dots on the dark canvas */
+  --on-accent: #0A0A0C;             /* dark text on bright neon fills */
+  --glow-peach: transparent;        /* no warm glow on the dark canvas */
+  --glow-pink: transparent;
+  /* Dark aura: subtle deep nebula tints rather than bright pastels */
+  --aura-1: #2E2540;
+  --aura-2: #1F2A45;
+  --aura-3: #1E3330;
+
+  --accent-pink: #22D3EE;           /* PRIMARY = neon cyan */
+  --accent-pink-soft: color-mix(in srgb, #22D3EE 22%, transparent);
+  --accent-peach: #FF2D78;          /* cyberpunk pink */
+  --accent-peach-soft: color-mix(in srgb, #FF2D78 22%, transparent);
+  --accent-green: #A3FF12;          /* fluorescent lime — online/active */
+  --accent-green-soft: color-mix(in srgb, #A3FF12 20%, transparent);
+  --accent-destructive: #FF5470;
+  --accent-destructive-soft: color-mix(in srgb, #FF5470 22%, transparent);
+
+  --tab-apps: #EA4335;              /* Google red */
+  --tab-db: #4285F4;                /* Google blue */
+  --tab-infra: #FBBC05;             /* Google amber */
+  --tab-users: #A04EF6;             /* deep purple */
+  --tab-audit: #34A853;             /* Google green */
+
+  --sidebar-foreground: var(--ink);
+}
+
 @theme inline {
+  /* Make Tailwind's font utilities + default stack use the Nexus Aura fonts
+     (so font-sans/font-serif anywhere resolve to Inter/Newsreader, never system). */
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-serif: 'Newsreader', 'Merriweather', Georgia, 'Times New Roman', serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -126,6 +190,15 @@
     color: var(--ink);
     min-height: 100vh;
     background: var(--canvas);
+    font-family: var(--font-sans);
+    letter-spacing: 0.01em;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Editorial serif for main + section headings (Claude.ai aesthetic). */
+  h1, h2, .font-display {
+    font-family: var(--font-serif);
+    letter-spacing: -0.01em;
   }
 }
 
@@ -147,7 +220,7 @@ html {
 }
 
 @layer utilities {
-  /* Single solid card surface used everywhere. */
+  /* Single flat card surface used everywhere — no shadow, just a hairline border. */
   .bento-card,
   .glass-card,
   .glass-card-strong {
@@ -159,6 +232,119 @@ html {
   /* No-op so existing className="glass-hover" doesn't break, just no animation. */
   .glass-hover {
     /* intentionally empty */
+  }
+
+  /* Graph-paper page background — subtle themed grid + diffused pastel mesh glows. */
+  .grid-paper {
+    background-color: var(--folder-bg);
+    background-image:
+      radial-gradient(45% 40% at 12% 0%, var(--glow-peach), transparent 72%),
+      radial-gradient(48% 42% at 96% 65%, var(--glow-pink), transparent 72%),
+      linear-gradient(to right, var(--grid-line) 1px, transparent 1px),
+      linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px);
+    background-size: 100% 100%, 100% 100%, 26px 26px, 26px 26px;
+    background-repeat: no-repeat, no-repeat, repeat, repeat;
+  }
+
+  /* Clean, ultra-minimalist dot-matrix page background. A single radial-gradient
+     dot tiled on an 18px grid — crisp at any zoom, no image asset needed.
+     `--dot` (charcoal in light, near-white in dark) sits on the warm off-white
+     `--folder-bg` (#FDFBF7). */
+  .dot-matrix {
+    background-color: var(--folder-bg);
+    background-image: radial-gradient(var(--dot) 1.1px, transparent 1.2px);
+    background-size: 18px 18px;
+    background-position: 0 0;
+    background-repeat: repeat;
+  }
+
+  /* Flat card surface for the main folder body + active tab (no texture, no shadow). */
+  .folder-paper {
+    background-color: var(--folder-cream);
+  }
+
+  /* Blueprint schematic page background — muted slate-blue circuit traces, server/chip
+     rectangles, junction nodes, dashed data-flow lines and geometric symbols, tiled on
+     a 220px grid over the cream canvas. Inline SVG so there's no asset to ship. */
+  .schematic-bg {
+    background-color: #FDFBF7;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220' viewBox='0 0 220 220'%3E%3Cg fill='none' stroke='%2391A7CE' stroke-width='1' opacity='0.55'%3E%3Cpath d='M0 40 H60 V92 H122'/%3E%3Cpath d='M220 28 H162 V82'/%3E%3Cpath d='M40 220 V160 H100 V120'/%3E%3Cpath d='M182 220 V150 H140 V112'/%3E%3Cpath d='M0 130 H22'/%3E%3C/g%3E%3Cg fill='none' stroke='%2391A7CE' stroke-width='1' opacity='0.3' stroke-dasharray='3 7'%3E%3Cpath d='M0 182 H220'/%3E%3Cpath d='M110 0 V220'/%3E%3C/g%3E%3Cg fill='%2391A7CE' opacity='0.55'%3E%3Ccircle cx='60' cy='40' r='2.4'/%3E%3Ccircle cx='122' cy='92' r='2.4'/%3E%3Ccircle cx='162' cy='82' r='2.4'/%3E%3Ccircle cx='100' cy='160' r='2.4'/%3E%3Ccircle cx='140' cy='150' r='2.4'/%3E%3C/g%3E%3Cg fill='none' stroke='%2391A7CE' stroke-width='1' opacity='0.45'%3E%3Crect x='30' y='100' width='36' height='22' rx='2'/%3E%3Crect x='150' y='28' width='26' height='26' rx='2'/%3E%3Cpath d='M196 110 h10 M201 105 v10'/%3E%3Cpath d='M14 62 h8 M18 58 v8'/%3E%3Cpath d='M100 28 l11 6.5 v13 l-11 6.5 l-11 -6.5 v-13 z'/%3E%3C/g%3E%3C/svg%3E");
+    background-size: 220px 220px;
+    background-repeat: repeat;
+  }
+
+  /* Faint square graph grid that sits behind the hero headline, radially faded at the
+     edges so it dissolves into the page (like the reference's center grid). */
+  .hero-grid {
+    background-image:
+      linear-gradient(to right, rgba(26,26,30,0.055) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(26,26,30,0.055) 1px, transparent 1px);
+    background-size: 40px 40px;
+    -webkit-mask-image: radial-gradient(closest-side, #000 55%, transparent 100%);
+            mask-image: radial-gradient(closest-side, #000 55%, transparent 100%);
+  }
+
+  /* Slow drifting mesh-gradient blobs (peach / pink / blue / purple) — each on its own
+     30s loop with a distinct path so the field feels alive and never static. */
+  @keyframes meshDrift1 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(42px,-34px) scale(1.12); } }
+  @keyframes meshDrift2 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(-52px,38px) scale(1.06); } }
+  @keyframes meshDrift3 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(34px,40px) scale(1.1); } }
+  @keyframes meshDrift4 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(-36px,-44px) scale(1.05); } }
+  .mesh-blob-1 { animation: meshDrift1 30s ease-in-out infinite; will-change: transform; }
+  .mesh-blob-2 { animation: meshDrift2 30s ease-in-out infinite; will-change: transform; }
+  .mesh-blob-3 { animation: meshDrift3 30s ease-in-out infinite; will-change: transform; }
+  .mesh-blob-4 { animation: meshDrift4 30s ease-in-out infinite; will-change: transform; }
+
+  /* Central card micro-float — gentle up/down + side/side drift, weightless feel. */
+  @keyframes cardFloat {
+    0%,100% { transform: translate(0px, 0px); }
+    25%     { transform: translate(2px, -6px); }
+    50%     { transform: translate(-2px, -3px); }
+    75%     { transform: translate(1px, -8px); }
+  }
+  .card-float { animation: cardFloat 9s ease-in-out infinite; will-change: transform; }
+
+  /* Parallax layer — drifts faster/farther than the card so inner elements appear to
+     lead the motion, deepening the illusion of weightlessness. */
+  @keyframes parallaxFloat {
+    0%,100% { transform: translate(0px, 0px); }
+    50%     { transform: translate(-1px, -10px); }
+  }
+  .parallax-float { animation: parallaxFloat 6s ease-in-out infinite; will-change: transform; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .mesh-blob-1, .mesh-blob-2, .mesh-blob-3, .mesh-blob-4,
+    .card-float, .parallax-float { animation: none; }
+  }
+
+  /* "Aura" halo ring behind the Nexus mark — a blurred pastel conic gradient that
+     slowly rotates to feel luminous (peach → blue → purple → mint). */
+  .aura-halo {
+    position: absolute;
+    width: 220px;
+    height: 220px;
+    border-radius: 9999px;
+    background: conic-gradient(from 0deg, #FFD3B0, #BFD0FF, #E6CCFF, #C9F3E3, #FFD3B0);
+    filter: blur(30px);
+    opacity: 0.75;
+    animation: auraSpin 18s linear infinite;
+    will-change: transform;
+  }
+  @keyframes auraSpin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) {
+    .aura-halo { animation: none; }
+  }
+
+  /* Real manila file-folder tab — ASYMMETRIC: straight-ish left with a rounded
+     top-left, flat top, and a long sweeping right-side tail that glides down to
+     the baseline (so each tab's tail tucks under the next). Built from an SVG
+     alpha-mask that stretches to the tab's box (preserveAspectRatio=none), so it
+     works at any width/height (active tab is taller). `--tab-color` fills it. */
+  .folder-tab {
+    position: relative;
+    background: var(--tab-color);
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 72' preserveAspectRatio='none'%3E%3Cpath d='M0,72L0,16Q0,0,16,0L116,0C150,0,148,72,200,72Z' fill='black'/%3E%3C/svg%3E") no-repeat center / 100% 100%;
+            mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 72' preserveAspectRatio='none'%3E%3Cpath d='M0,72L0,16Q0,0,16,0L116,0C150,0,148,72,200,72Z' fill='black'/%3E%3C/svg%3E") no-repeat center / 100% 100%;
   }
 
   .bento-card-hover {
@@ -207,3 +393,16 @@ html {
     to { transform: translateX(100%); }
   }
 }
+
+/* === Dark-mode adaptation for components that hardcode light Tailwind utilities ===
+   Many feature components use slate text, white backgrounds, and black tints directly. Rather
+   than edit every file, remap those utilities to the themed tokens under `.dark`
+   (higher specificity, so these win). */
+.dark .text-slate-900,
+.dark .text-slate-800,
+.dark .text-slate-700 { color: var(--ink) !important; }
+.dark .text-slate-600,
+.dark .text-slate-500,
+.dark .text-slate-400 { color: var(--ink-muted) !important; }
+.dark .bg-white { background-color: var(--card) !important; }
+.dark .glass-skeleton { background: rgba(245, 245, 247, 0.06) !important; }

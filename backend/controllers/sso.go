@@ -314,7 +314,7 @@ func generateJWT(user *models.User) (string, error) {
 		"user_id":  user.ID,
 		"username": user.Username,
 		"role":     user.Role,
-		"exp":      time.Now().Add(time.Hour * 24 * 7).Unix(), // 7 days
+		"exp":      time.Now().Add(time.Hour * 24).Unix(), // 1 day — daily session expiry (matches password login)
 	})
 
 	return token.SignedString([]byte(secret))

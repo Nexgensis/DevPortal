@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { PostgresContainer, PostgresDatabase, PostgresDumpRequest } from '../types/postgres';
+import { PostgresContainer, PostgresDatabase, PostgresDumpRequest, PostgresCredential, PostgresCredentialInput } from '../types/postgres';
 import { toast } from 'sonner';
 
 const API_BASE = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_URL)
@@ -49,13 +49,15 @@ export const usePostgres = () => {
     }
   };
 
-  const getDatabases = async (serverId: string, containerId: string): Promise<PostgresDatabase[]> => {
+  const getDatabases = async (serverId: string, containerId: string, containerName?: string): Promise<PostgresDatabase[]> => {
     setLoading(true);
     setError(null);
     try {
       const token = getAuthToken();
+      // Pass the container name so the backend can resolve stored credentials.
+      const query = containerName ? `?container_name=${encodeURIComponent(containerName)}` : '';
       const response = await fetch(
-        `${API_BASE}/servers/${serverId}/postgres/containers/${containerId}/databases`,
+        `${API_BASE}/servers/${serverId}/postgres/containers/${containerId}/databases${query}`,
         {
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -141,6 +143,80 @@ export const usePostgres = () => {
     }
   };
 
+  const getCredentials = async (serverId: string): Promise<PostgresCredential[]> => {
+    try {
+      const token = getAuthToken();
+      const response = await fetch(`${API_BASE}/servers/${serverId}/postgres/credentials`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      if (!response.ok) throw new Error(`Failed to fetch credentials: ${response.statusText}`);
+      const data = await response.json();
+      return data.credentials || [];
+    } catch (err) {
+      // Non-fatal: the UI can still operate with auto-detection.
+      console.error('Failed to load credentials:', err);
+      return [];
+    }
+  };
+
+  const saveCredential = async (serverId: string, input: PostgresCredentialInput): Promise<boolean> => {
+    setLoading(true);
+    setError(null);
+    try {
+      const token = getAuthToken();
+      const response = await fetch(`${API_BASE}/servers/${serverId}/postgres/credentials`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(input),
+      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Failed to save credentials: ${response.statusText}`);
+      }
+      toast.success('Database credentials saved');
+      return true;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to save credentials';
+      setError(message);
+      toast.error(message);
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const deleteCredential = async (serverId: string, containerName: string): Promise<boolean> => {
+    setLoading(true);
+    try {
+      const token = getAuthToken();
+      const response = await fetch(
+        `${API_BASE}/servers/${serverId}/postgres/credentials/${encodeURIComponent(containerName)}`,
+        {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+      if (!response.ok) throw new Error(`Failed to delete credentials: ${response.statusText}`);
+      toast.success('Database credentials removed');
+      return true;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to delete credentials';
+      toast.error(message);
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return {
     loading,
     error,
@@ -148,5 +224,8 @@ export const usePostgres = () => {
     getDatabases,
     createDump,
     testConnection,
+    getCredentials,
+    saveCredential,
+    deleteCredential,
   };
 };

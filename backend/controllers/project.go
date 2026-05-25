@@ -30,18 +30,6 @@ func CreateProject(db *gorm.DB) gin.HandlerFunc {
 	}
 }
 
-func GetProject(db *gorm.DB) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		id := c.Param("id")
-		var project models.Project
-		if result := db.First(&project, "id = ?", id); result.Error != nil {
-			respondWithError(c, http.StatusNotFound, "Project not found")
-			return
-		}
-		c.JSON(http.StatusOK, project)
-	}
-}
-
 func UpdateProject(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Param("id")

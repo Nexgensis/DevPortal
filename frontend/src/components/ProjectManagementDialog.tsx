@@ -112,7 +112,7 @@ export function ProjectManagementDialog({
           <form onSubmit={handleSubmit}>
             <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto pr-2">
               <div className="grid gap-2">
-                <Label htmlFor="name" className="text-slate-700">
+                <Label htmlFor="name" className="text-[var(--ink)]">
                   Project Name <span className="text-[var(--accent-destructive)]">*</span>
                 </Label>
                 <Input
@@ -122,13 +122,13 @@ export function ProjectManagementDialog({
                   placeholder="QMS"
                   required
                 />
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-[var(--ink-muted)]">
                   A unique name for the project (e.g., QMS, EBMR, CRM)
                 </p>
               </div>
 
               <div className="grid gap-2">
-                <Label htmlFor="description" className="text-slate-700">Description (Optional)</Label>
+                <Label htmlFor="description" className="text-[var(--ink)]">Description (Optional)</Label>
                 <Textarea
                   id="description"
                   value={description}
@@ -136,7 +136,7 @@ export function ProjectManagementDialog({
                   placeholder="Quality Management System applications"
                   rows={3}
                 />
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-[var(--ink-muted)]">
                   Brief description of what this project contains
                 </p>
               </div>

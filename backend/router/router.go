@@ -52,6 +52,9 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
     auth.GET("/servers/:id/postgres/containers/:container_id/databases", controllers.GetPostgresDatabases(db))
     auth.POST("/servers/:id/postgres/containers/:container_id/test", controllers.TestPostgresConnection(db))
     auth.POST("/postgres/dump", controllers.CreatePostgresDump(db))
+    // Per-container PostgreSQL credentials — read for any authenticated user
+    // (passwords are never returned); mutations are admin-only (registered below).
+    auth.GET("/servers/:id/postgres/credentials", controllers.ListPostgresCredentials(db))
 
     // Admin routes - only admins can modify servers, projects, apps
     admin := auth.Group("/")
@@ -60,6 +63,10 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
     admin.POST("/servers", controllers.CreateServer(db))
     admin.PUT("/servers/:id", controllers.UpdateServer(db))
     admin.DELETE("/servers/:id", controllers.DeleteServer(db))
+
+    // PostgreSQL credential mutations (admin only)
+    admin.PUT("/servers/:id/postgres/credentials", controllers.UpsertPostgresCredential(db))
+    admin.DELETE("/servers/:id/postgres/credentials/:container_name", controllers.DeletePostgresCredential(db))
 
     admin.POST("/projects", controllers.CreateProject(db))
     admin.PUT("/projects/:id", controllers.UpdateProject(db))

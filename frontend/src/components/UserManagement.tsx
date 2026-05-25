@@ -141,11 +141,11 @@ export function UserManagement() {
       <GlassCard>
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h2 className="flex items-center gap-2 text-xl font-semibold text-slate-900">
+            <h2 className="flex items-center gap-2 text-xl font-semibold text-[var(--ink)]">
               <Users className="h-6 w-6" />
               User Management
             </h2>
-            <p className="text-sm text-slate-600 mt-1">
+            <p className="text-sm text-[var(--ink-muted)] mt-1">
               Manage users and their permissions
             </p>
           </div>
@@ -164,7 +164,7 @@ export function UserManagement() {
               </DialogHeader>
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="username" className="text-slate-700">
+                  <Label htmlFor="username" className="text-[var(--ink)]">
                     Username <span className="text-[var(--accent-destructive)]">*</span>
                   </Label>
                   <Input
@@ -175,7 +175,7 @@ export function UserManagement() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="email" className="text-slate-700">
+                  <Label htmlFor="email" className="text-[var(--ink)]">
                     Email <span className="text-[var(--accent-destructive)]">*</span>
                   </Label>
                   <Input
@@ -187,7 +187,7 @@ export function UserManagement() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="fullName" className="text-slate-700">Full Name</Label>
+                  <Label htmlFor="fullName" className="text-[var(--ink)]">Full Name</Label>
                   <Input
                     id="fullName"
                     value={formData.fullName}
@@ -196,7 +196,7 @@ export function UserManagement() {
                 </div>
                 {!editingUser && (
                   <div className="space-y-2">
-                    <Label htmlFor="password" className="text-slate-700">
+                    <Label htmlFor="password" className="text-[var(--ink)]">
                       Password <span className="text-[var(--accent-destructive)]">*</span>
                     </Label>
                     <Input
@@ -209,7 +209,7 @@ export function UserManagement() {
                   </div>
                 )}
                 <div className="space-y-2">
-                  <Label htmlFor="role" className="text-slate-700">Role</Label>
+                  <Label htmlFor="role" className="text-[var(--ink)]">Role</Label>
                   <Select value={formData.role} onValueChange={(value) => setFormData({ ...formData, role: value })}>
                     <SelectTrigger>
                       <SelectValue />
@@ -249,10 +249,10 @@ export function UserManagement() {
         ) : users.length === 0 ? (
           <div className="text-center py-16 px-4 rounded-2xl border border-dashed border-black/6 bg-black/3">
             <div className="h-24 w-24 rounded-2xl glass-card flex items-center justify-center mx-auto mb-4">
-              <Users className="h-12 w-12 text-slate-500" />
+              <Users className="h-12 w-12 text-[var(--ink-muted)]" />
             </div>
-            <h3 className="mb-2 text-lg font-semibold text-slate-900">No Users Available</h3>
-            <p className="text-slate-600 mb-4 max-w-md mx-auto">
+            <h3 className="mb-2 text-lg font-semibold text-[var(--ink)]">No Users Available</h3>
+            <p className="text-[var(--ink-muted)] mb-4 max-w-md mx-auto">
               Click "Add User" to create your first user.
             </p>
           </div>
@@ -264,17 +264,17 @@ export function UserManagement() {
                 className="glass-card glass-hover flex items-center gap-4 p-4"
               >
                 <div className="h-9 w-9 rounded-xl flex items-center justify-center flex-shrink-0 bg-black/4 border border-black/8">
-                  <UserIcon className="h-5 w-5 text-slate-700" />
+                  <UserIcon className="h-5 w-5 text-[var(--ink)]" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-0.5">
-                    <span className="truncate font-medium text-slate-900">{user.username}</span>
+                    <span className="truncate font-medium text-[var(--ink)]">{user.username}</span>
                     <Badge
                       variant={user.role === 'admin' ? 'default' : 'secondary'}
                       className={
                         user.role === 'admin'
                           ? 'bg-[var(--accent-lime)] text-[#0A0B14] hover:bg-[var(--accent-lime)] border-0'
-                          : 'bg-black/5 text-slate-700 hover:bg-black/5 border border-black/8'
+                          : 'bg-black/5 text-[var(--ink)] hover:bg-black/5 border border-black/8'
                       }
                     >
                       {user.role === 'admin' && <Shield className="h-3 w-3 mr-1" />}
@@ -283,13 +283,13 @@ export function UserManagement() {
                     {!user.isActive && (
                       <Badge
                         variant="secondary"
-                        className="bg-black/5 text-slate-500 border border-black/8"
+                        className="bg-black/5 text-[var(--ink-muted)] border border-black/8"
                       >
                         Inactive
                       </Badge>
                     )}
                   </div>
-                  <div className="flex items-center gap-2 text-sm text-slate-600">
+                  <div className="flex items-center gap-2 text-sm text-[var(--ink-muted)]">
                     <Mail className="h-3 w-3" />
                     <span className="truncate">{user.email}</span>
                     {user.fullName && <span className="truncate">• {user.fullName}</span>}
@@ -298,7 +298,7 @@ export function UserManagement() {
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <button
-                      className="h-9 w-9 rounded-xl bg-black/3 border border-black/8 hover:bg-black/6 flex items-center justify-center transition-colors flex-shrink-0 focus-ring-cyan backdrop-blur-md text-slate-700"
+                      className="h-9 w-9 rounded-xl bg-black/3 border border-black/8 hover:bg-black/6 flex items-center justify-center transition-colors flex-shrink-0 focus-ring-cyan backdrop-blur-md text-[var(--ink)]"
                       aria-label="More options"
                     >
                       <MoreVertical className="h-4 w-4" />

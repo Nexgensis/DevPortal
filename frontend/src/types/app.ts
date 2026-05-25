@@ -1,14 +1,21 @@
 // User roles
 export type UserRole = 'admin' | 'user';
 
-// Server configuration
+// Server configuration — connects to the remote Docker Engine API over mTLS.
 export interface Server {
   id: string;
   name: string;
   address: string; // hostname/IP
-  sshUser: string;
-  sshPort: number;
-  sshPrivateKey: string; // Encrypted SSH private key (never displayed after saving)
+  dockerApiPort: number; // Docker Engine API port (default 2376)
+  tlsCa: string; // CA certificate PEM (ca.pem) — plain text
+  tlsCert: string; // client certificate PEM (cert.pem) — plain text
+  tlsKey?: string; // client private key PEM (key.pem) — encrypted at rest, never returned by the API
+  // Optional server-level PostgreSQL superuser — fallback for ALL containers on
+  // this host when the default "postgres" role fails (hardened images).
+  pgUser?: string;
+  pgMaintenanceDb?: string;
+  pgPassword?: string; // write-only; encrypted at rest, never returned by the API
+  pgHasPassword?: boolean; // read-only flag: a password is stored
   status: 'online' | 'offline' | 'checking';
   lastChecked?: number;
   runningAppsCount: number;

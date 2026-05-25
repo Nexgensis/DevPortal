@@ -5,7 +5,7 @@ import { useProjects } from './hooks/useProjects';
 import { useAuth } from './hooks/useAuth';
 import { AppCard } from './components/AppCard';
 import { AppManagementDialog } from './components/AppManagementDialog';
-import { Sidebar } from './components/Sidebar';
+import { FolderTabs } from './components/FolderTabs';
 import { Infrastructure } from './components/Infrastructure';
 import { UserManagement } from './components/UserManagement';
 import { AuditLogs } from './components/AuditLogs';
@@ -14,12 +14,22 @@ import { AuthCallback } from './components/AuthCallback';
 import { PostgresManager } from './components/PostgresManager';
 import { Badge } from './components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './components/ui/tabs';
-import { Plus, Activity, FolderKanban, Search, Server as ServerIcon, Zap, Clock } from 'lucide-react';
+import { Plus, Activity, FolderKanban, Search, Server as ServerIcon, Zap, Clock, LogOut, Shield, Sun, Moon } from 'lucide-react';
 import { Input } from './components/ui/input';
 import { App as AppType, Project, Server } from './types/app';
 import { Toaster } from './components/ui/sonner';
 import { GlassCard } from './components/ui/glass-card';
 import { AccentButton } from './components/ui/accent-button';
+
+// Per-view editorial header copy — each folder tab gets its own big serif title
+// + muted subtitle at the top of the workspace (keyed by activeView).
+const VIEW_META: Record<'applications' | 'infrastructure' | 'users' | 'audit-logs' | 'database-dump', { title: string; subtitle: string }> = {
+  'database-dump': { title: 'Database Dump', subtitle: 'Dump and download PostgreSQL databases from containers' },
+  applications: { title: 'Applications', subtitle: 'Deploy and manage your Docker Compose applications' },
+  infrastructure: { title: 'Infrastructure', subtitle: 'Manage server connections and project groupings' },
+  users: { title: 'Users', subtitle: 'Manage user accounts, roles, and access' },
+  'audit-logs': { title: 'Audit Logs', subtitle: 'Review system activity and security events' },
+};
 
 export default function App() {
   const { user, isLoading: authLoading, isAuthenticated, isAdmin, login, logout, setAuthToken } = useAuth();
@@ -29,9 +39,23 @@ export default function App() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingApp, setEditingApp] = useState<App | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeView, setActiveView] = useState<'applications' | 'infrastructure' | 'users' | 'audit-logs' | 'database-dump'>('applications');
+  const [activeView, setActiveView] = useState<'applications' | 'infrastructure' | 'users' | 'audit-logs' | 'database-dump'>('database-dump');
   const [serverDialogTrigger, setServerDialogTrigger] = useState(0);
   const [projectDialogTrigger, setProjectDialogTrigger] = useState(0);
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    if (typeof localStorage !== 'undefined') {
+      const saved = localStorage.getItem('devops-theme');
+      if (saved === 'light' || saved === 'dark') return saved;
+    }
+    return 'light';
+  });
+
+  // Apply the theme by toggling the `.dark` class on <html>, and persist it.
+  useEffect(() => {
+    const root = document.documentElement;
+    root.classList.toggle('dark', theme === 'dark');
+    localStorage.setItem('devops-theme', theme);
+  }, [theme]);
 
 
   // Handle Microsoft SSO callback
@@ -66,7 +90,7 @@ export default function App() {
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <Activity className="h-12 w-12 text-[var(--accent-cyan)] mx-auto mb-4 animate-pulse" />
-          <p className="text-slate-600">Loading…</p>
+          <p className="text-[var(--ink-muted)]">Loading…</p>
         </div>
       </div>
     );
@@ -127,84 +151,74 @@ export default function App() {
     : projects;
 
   return (
-    <div className="flex min-h-screen bg-[var(--sidebar-bg)]">
-      {/* Sidebar */}
-      <Sidebar
-        activeView={activeView}
-        onNavigate={setActiveView}
-        onLogout={logout}
-        isAdmin={isAdmin}
-        username={user?.username || ''}
-      />
-
-      {/* Main Content — white rounded panel sitting inside the dark frame */}
-      <main
-        className="flex-1 min-w-0 my-4 mr-4 bg-[var(--canvas)] rounded-2xl overflow-hidden"
-      >
-        <div className="p-8 max-w-[1600px] mx-auto">
-          {/* Header */}
-          <div className="bento-card mb-8 p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-2xl font-semibold text-[var(--ink)]">
-                  {activeView === 'applications' && 'Applications'}
-                  {activeView === 'infrastructure' && 'Infrastructure'}
-                  {activeView === 'database-dump' && 'Database Dump'}
-                  {activeView === 'users' && 'User Management'}
-                  {activeView === 'audit-logs' && 'Audit Logs'}
-                </h1>
-                <p className="text-[var(--ink-muted)] mt-1">
-                  {activeView === 'applications' && 'Manage and monitor your Docker Compose applications'}
-                  {activeView === 'infrastructure' && 'Manage servers, projects, and users'}
-                  {activeView === 'database-dump' && 'Dump and download PostgreSQL databases from containers'}
-                  {activeView === 'users' && 'Manage users and their permissions'}
-                  {activeView === 'audit-logs' && 'View and manage audit logs'}
-                </p>
-              </div>
+    <div className="dot-matrix relative h-screen flex flex-col overflow-hidden">
+      {/* Top bar — brand + user */}
+      <header className="relative z-10 flex items-center justify-between px-6 pt-10 pb-4 flex-shrink-0">
+        <div className="flex flex-col items-start">
+          {/* Portal title (serif) */}
+          <h1 className="font-display text-5xl lg:text-6xl font-bold leading-[1.05] tracking-tight text-[var(--ink)]">
+            Nexus Aura Portal
+          </h1>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5 rounded-full bg-[var(--card)] border border-[var(--border)] pl-2.5 pr-3.5 py-1.5">
+            <div className="h-7 w-7 rounded-full bg-[var(--accent-pink)] flex items-center justify-center flex-shrink-0">
+              <Shield className="h-4 w-4 text-[var(--on-accent)]" />
+            </div>
+            <div className="leading-tight">
+              <div className="text-sm font-semibold text-[var(--ink)]">{user?.username}</div>
+              <div className="text-[11px] text-[var(--ink-muted)]">{isAdmin ? 'Administrator' : 'User'}</div>
             </div>
           </div>
+          <button
+            onClick={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
+            aria-label="Toggle light / dark theme"
+            className="h-10 w-10 rounded-full flex items-center justify-center bg-[var(--card)] border border-[var(--border)] text-[var(--ink-muted)] hover:text-[var(--ink)] transition-colors focus:outline-none"
+          >
+            {theme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+          </button>
+          <button
+            onClick={logout}
+            aria-label="Sign out"
+            className="h-10 w-10 rounded-full flex items-center justify-center bg-[var(--card)] border border-[var(--border)] text-[var(--ink-muted)] hover:text-[var(--ink)] transition-colors focus:outline-none"
+          >
+            <LogOut className="h-5 w-5" />
+          </button>
+        </div>
+      </header>
 
-          {/* Bento stat row — only on Applications view */}
+      {/* Folder area — flat borderless card; the active (card-colored) tab melts into it */}
+      <div className="relative z-10 flex-1 min-h-0 flex flex-col px-4 pb-4">
+        <FolderTabs active={activeView} onNavigate={setActiveView} isAdmin={isAdmin} />
+        <main className="folder-paper relative z-10 -mt-px flex-1 min-h-0 rounded-tr-[28px] rounded-b-[28px] border border-[var(--border)] overflow-auto">
+          <div className="p-8 max-w-[1600px] mx-auto">
+          {/* Per-view editorial header — big serif title + muted subtitle for the active tab */}
+          <div className="mb-8">
+            <h1 className="font-display text-4xl font-bold tracking-tight text-[var(--ink)]">
+              {VIEW_META[activeView].title}
+            </h1>
+            <p className="text-[var(--ink-muted)] mt-2 text-base">
+              {VIEW_META[activeView].subtitle}
+            </p>
+          </div>
+
+          {/* Stats — inline on the paper, separated by hairlines (no boxes) */}
           {activeView === 'applications' && (
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-              <StatCard
-                tone="cream"
-                icon={<FolderKanban className="h-4 w-4" />}
-                label="Total Applications"
-                value={apps.length}
-                trend={`${projects.length} project${projects.length === 1 ? '' : 's'}`}
-              />
-              <StatCard
-                tone="pink"
-                icon={<Zap className="h-4 w-4" />}
-                label="Running Now"
-                value={apps.filter(a => a.status === 'running').length}
-                trend={`of ${apps.length} apps`}
-              />
-              <StatCard
-                tone="cream"
-                icon={<ServerIcon className="h-4 w-4" />}
-                label="Servers Online"
-                value={`${servers.filter(s => s.status === 'online').length}/${servers.length}`}
-                trend={servers.length > 0 && servers.every(s => s.status === 'online') ? 'All healthy' : 'Mixed'}
-              />
-              <StatCard
-                tone="peach"
-                icon={<Clock className="h-4 w-4" />}
-                label="Last Activity"
-                value="Just now"
-                trend="Live"
-              />
+            <div className="mb-10 grid grid-cols-2 lg:grid-cols-4 border-y border-[var(--border)] divide-x divide-[var(--border)]">
+              <EditorialStat value={apps.length} label="Total Applications" sub={`${projects.length} project${projects.length === 1 ? '' : 's'}`} />
+              <EditorialStat value={apps.filter(a => a.status === 'running').length} label="Running Now" sub={`of ${apps.length} apps`} />
+              <EditorialStat value={`${servers.filter(s => s.status === 'online').length}/${servers.length}`} label="Servers Online" sub={servers.length > 0 && servers.every(s => s.status === 'online') ? 'All healthy' : 'Mixed'} />
+              <EditorialStat value="Just now" label="Last Activity" sub="Live" />
             </div>
           )}
 
-          {/* Content Area */}
+          {/* Content Area — directly on the paper, no card wrapper */}
           {activeView === 'applications' && (
-            <GlassCard animate={false}>
+            <div>
               {/* Search and Actions Bar */}
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 mb-6">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 mb-8">
                 <div className="relative flex-1 max-w-md">
-                  <Search className="absolute left-3.5 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-500 pointer-events-none" />
+                  <Search className="absolute left-3.5 top-1/2 transform -translate-y-1/2 h-4 w-4 text-[var(--ink-muted)] pointer-events-none" />
                   <Input
                     placeholder="Search applications..."
                     value={searchQuery}
@@ -227,11 +241,9 @@ export default function App() {
 
               {apps.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-20 px-4">
-                  <div className="h-32 w-32 rounded-2xl glass-card flex items-center justify-center mb-6">
-                    <Activity className="h-16 w-16 text-[var(--accent-cyan)]" />
-                  </div>
-                  <h3 className="mb-3 text-lg font-semibold text-slate-900">No Applications Yet</h3>
-                  <p className="text-slate-600 text-center mb-8 max-w-md">
+                  <Activity className="h-14 w-14 text-[var(--accent-pink)] mb-5" strokeWidth={1.5} />
+                  <h3 className="mb-3 text-lg font-semibold text-[var(--ink)]">No Applications Yet</h3>
+                  <p className="text-[var(--ink-muted)] text-center mb-8 max-w-md">
                     {isAdmin
                       ? projects.length === 0
                         ? 'Create a project first to organize your applications.'
@@ -250,20 +262,20 @@ export default function App() {
               ) : projects.length === 0 ? (
                 <div className="text-center py-16 px-4">
                   <div className="h-24 w-24 rounded-2xl glass-card flex items-center justify-center mx-auto mb-4">
-                    <FolderKanban className="h-12 w-12 text-slate-500" />
+                    <FolderKanban className="h-12 w-12 text-[var(--ink-muted)]" />
                   </div>
-                  <p className="text-slate-600">
+                  <p className="text-[var(--ink-muted)]">
                     No projects available. {isAdmin ? 'Create a project to organize your apps.' : 'Contact your administrator.'}
                   </p>
                 </div>
               ) : visibleProjects.length === 0 ? (
                 <div className="text-center py-16 px-4">
                   <div className="h-24 w-24 rounded-2xl glass-card flex items-center justify-center mx-auto mb-4">
-                    <Search className="h-12 w-12 text-slate-500" />
+                    <Search className="h-12 w-12 text-[var(--ink-muted)]" />
                   </div>
-                  <h3 className="mb-2 text-lg font-semibold text-slate-900">No Results Found</h3>
-                  <p className="text-slate-600 mb-1">No apps found matching "{searchQuery}"</p>
-                  <p className="text-slate-600 mb-6">Try searching by app name, domain, or project name</p>
+                  <h3 className="mb-2 text-lg font-semibold text-[var(--ink)]">No Results Found</h3>
+                  <p className="text-[var(--ink-muted)] mb-1">No apps found matching "{searchQuery}"</p>
+                  <p className="text-[var(--ink-muted)] mb-6">Try searching by app name, domain, or project name</p>
                   <AccentButton variant="ghost" onClick={() => setSearchQuery('')}>
                     Clear Search
                   </AccentButton>
@@ -278,7 +290,7 @@ export default function App() {
                         value={project.id}
                       >
                         <span className="mr-2">{project.name}</span>
-                        <span className="inline-flex items-center justify-center min-w-5 px-1.5 h-5 rounded-full bg-black/5 text-xs font-semibold text-slate-700">
+                        <span className="inline-flex items-center justify-center min-w-5 px-1.5 h-5 rounded-full bg-black/5 text-xs font-semibold text-[var(--ink)]">
                           {appsByProject[project.id]?.length || 0}
                         </span>
                       </TabsTrigger>
@@ -291,10 +303,10 @@ export default function App() {
                       {appsByProject[project.id]?.length === 0 ? (
                         <div className="text-center py-16 px-4">
                           <div className="h-24 w-24 rounded-2xl glass-card flex items-center justify-center mx-auto mb-4">
-                            <FolderKanban className="h-12 w-12 text-slate-500" />
+                            <FolderKanban className="h-12 w-12 text-[var(--ink-muted)]" />
                           </div>
-                          <h3 className="mb-2 text-lg font-semibold text-slate-900">No Applications in {project.name}</h3>
-                          <p className="text-slate-600 mb-6">This project doesn't have any applications yet.</p>
+                          <h3 className="mb-2 text-lg font-semibold text-[var(--ink)]">No Applications in {project.name}</h3>
+                          <p className="text-[var(--ink-muted)] mb-6">This project doesn't have any applications yet.</p>
                           {isAdmin && (
                             <AccentButton onClick={handleAddApp} variant="lime">
                               <Plus className="h-4 w-4" />
@@ -324,7 +336,7 @@ export default function App() {
                   ))}
                 </Tabs>
               )}
-            </GlassCard>
+            </div>
           )}
 
           {activeView === 'infrastructure' && isAdmin && (
@@ -352,8 +364,9 @@ export default function App() {
           {activeView === 'database-dump' && (
             <PostgresManager />
           )}
-        </div>
-      </main>
+          </div>
+        </main>
+      </div>
 
       {/* App Management Dialog (Admin Only) */}
       {isAdmin && (
@@ -372,6 +385,17 @@ export default function App() {
 
       {/* Toast Notifications */}
       <Toaster />
+    </div>
+  );
+}
+
+// Editorial inline stat — big number + label, no box (sits on the folder paper).
+function EditorialStat({ value, label, sub }: { value: React.ReactNode; label: string; sub?: string }) {
+  return (
+    <div className="px-6 py-5 first:pl-0">
+      <div className="text-3xl font-bold leading-none tabular-nums text-[var(--ink)]">{value}</div>
+      <div className="mt-2 text-sm font-medium text-[var(--ink)]">{label}</div>
+      {sub && <div className="mt-0.5 text-xs text-[var(--ink-muted)]">{sub}</div>}
     </div>
   );
 }
