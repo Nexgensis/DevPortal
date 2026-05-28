@@ -199,13 +199,13 @@
     -webkit-font-smoothing: antialiased;
   }
 
-  /* WealthSync-style bold sans headings — tight tracking, geometric Inter.
-     Components can still opt back into editorial serif via inline style or a
-     local class if they want the Claude.ai vibe for a hero block. */
+  /* Nexus Aura brand: editorial serif headings (Newsreader) over geometric
+     sans body (Inter) — matches the Anthropic editorial typography. Body text
+     inherits --font-sans from the `body` rule above. */
   h1, h2, .font-display {
-    font-family: var(--font-sans);
-    letter-spacing: -0.025em;
-    font-weight: 700;
+    font-family: var(--font-serif);
+    letter-spacing: -0.015em;
+    font-weight: 600;
   }
 }
 

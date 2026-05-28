@@ -135,7 +135,6 @@ const ContainerRow = ({ c, projectName }: { c: ContainerView; projectName: strin
         borderRadius: '24px',
         padding: '14px 8px 8px 8px',
         boxShadow: p.chassisShadow,
-        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
       }}
     >
       {/* Header strip — icon chip + container name as the title. */}
@@ -742,8 +741,6 @@ export const RunningApps = () => {
                       border: `4px solid ${theme.border}`,
                       boxSizing: 'border-box',
                       boxShadow: theme.baseShadow,
-                      fontFamily:
-                        '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
                       containerType: 'inline-size',
                     }}
                     onMouseEnter={(e) => { e.currentTarget.style.boxShadow = theme.hoverShadow; }}
