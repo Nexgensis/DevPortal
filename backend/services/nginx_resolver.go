@@ -20,16 +20,16 @@ import (
 
 // errAgentMissing means the per-server helper container isn't deployed. Callers
 // degrade gracefully (URLs fall back to IP:port) and the UI surfaces a hint.
-var errAgentMissing = errors.New("webmanager-agent container not found on server")
+var errAgentMissing = errors.New("nexus-aura-agent container not found on server")
 
 // nginxCacheTTL bounds how stale the port→domain map can be. nginx changes are
 // infrequent and re-reading hits a cheap exec, so a short TTL is fine.
 const nginxCacheTTL = 60 * time.Second
 
 // agentContainerName is the documented name in the deploy command; the label
-// `webmanager.agent=true` is the preferred lookup (survives renames).
-const agentContainerName = "webmanager-agent"
-const agentLabel = "webmanager.agent"
+// `nexus-aura.agent=true` is the preferred lookup (survives renames).
+const agentContainerName = "nexus-aura-agent"
+const agentLabel = "nexus-aura.agent"
 
 // NginxResolver caches per-server port→domain maps derived from the host's nginx
 // configs (read via `docker exec` into the helper agent container).
@@ -73,20 +73,20 @@ func (r *NginxResolver) GetDomainMap(ctx context.Context, cli *client.Client, se
 	return m, nil
 }
 
-// findAgentContainer prefers the label `webmanager.agent=true` and falls back
-// to the documented container name.
+// findAgentContainer prefers the `nexus-aura.agent=true` label and falls back
+// to the documented container name `nexus-aura-agent`.
 func findAgentContainer(ctx context.Context, cli *client.Client) (string, error) {
 	containers, err := cli.ContainerList(ctx, container.ListOptions{})
 	if err != nil {
 		return "", err
 	}
-	// Pass 1: label.
+	// Pass 1: preferred label.
 	for _, c := range containers {
 		if c.Labels[agentLabel] == "true" {
 			return c.ID, nil
 		}
 	}
-	// Pass 2: by name.
+	// Pass 2: preferred name.
 	for _, c := range containers {
 		for _, n := range c.Names {
 			if strings.TrimPrefix(n, "/") == agentContainerName {

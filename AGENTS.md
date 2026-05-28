@@ -205,10 +205,10 @@ A **"Security Scan"** tab shows the latest CI/CD security-scan report (SonarQube
 ### Running Apps
 A **"Running Apps"** tab gives a live drill-down per server: **Server → Compose project → Container → frontend URL**. URLs are resolved automatically — if the host's nginx fronts the container's published port, the chip links to `https://<domain>`; otherwise it falls back to `http://<server.address>:<port>`. No DB persistence — everything is live from the Docker API.
 - **Project discovery** ([services/running_apps_service.go](backend/services/running_apps_service.go)): list running containers via the existing mTLS Docker SDK; group by labels `com.docker.compose.project` + `…working_dir` (mirrors what `docker compose ls` shows). Containers without the compose label are skipped.
-- **Domain resolution via helper agent** ([services/nginx_resolver.go](backend/services/nginx_resolver.go)): each managed host runs one tiny container the admin deploys once — preferred lookup by label `webmanager.agent=true` (fallback name `webmanager-agent`). Backend `docker exec`s `cat /etc/nginx/conf.d/*.conf` into it, parses `server { server_name X; proxy_pass http://…:<port>; }` blocks into a `port → domain` map, caches per server for 60s. **Deploy command** (paste-and-run on the host; shown inline in the UI when the agent is missing):
+- **Domain resolution via the Nexus Aura Agent** ([services/nginx_resolver.go](backend/services/nginx_resolver.go)): each managed host runs one tiny container the admin deploys once — preferred lookup by label `nexus-aura.agent=true` with fallback to container name `nexus-aura-agent`. Backend `docker exec`s `cat /etc/nginx/conf.d/*.conf` into it, parses `server { server_name X; proxy_pass http://…:<port>; }` blocks into a `port → domain` map, caches per server for 60s. **Deploy command** (paste-and-run on the host; shown inline in the UI when the agent is missing):
   ```bash
-  docker run -d --name webmanager-agent --restart unless-stopped \
-    --label webmanager.agent=true \
+  docker run -d --name nexus-aura-agent --restart unless-stopped \
+    --label nexus-aura.agent=true \
     -v /etc/nginx/conf.d:/etc/nginx/conf.d:ro \
     alpine:3 sleep infinity
   ```

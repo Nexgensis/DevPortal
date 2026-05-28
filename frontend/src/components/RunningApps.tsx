@@ -15,8 +15,8 @@ import { useTheme } from '../hooks/useTheme';
 
 // One-line copy-paste deploy command for the helper agent. Shown inline when a
 // server reports agentMissing so admins can paste-and-run on the host.
-const AGENT_DEPLOY_CMD = `docker run -d --name webmanager-agent --restart unless-stopped \\
-  --label webmanager.agent=true \\
+const AGENT_DEPLOY_CMD = `docker run -d --name nexus-aura-agent --restart unless-stopped \\
+  --label nexus-aura.agent=true \\
   -v /etc/nginx/conf.d:/etc/nginx/conf.d:ro \\
   alpine:3 sleep infinity`;
 

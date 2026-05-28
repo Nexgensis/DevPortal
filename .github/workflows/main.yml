@@ -59,9 +59,9 @@ jobs:
       ssh_key: ${{ secrets.SERVER_SSH_KEY }}
       username: root
 
-  release-notes:
-    needs: [cleanup]
-    uses: Nexgensis/github-actions/.github/workflows/release-notes.yml@main
+  # release-notes:
+  #   needs: [cleanup]
+  #   uses: Nexgensis/github-actions/.github/workflows/release-notes.yml@main
   
   # release-email:
   #   needs: release-notes

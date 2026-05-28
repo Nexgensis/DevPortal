@@ -13,7 +13,7 @@ import (
 
 // GetRunningApps returns docker-compose projects + running containers for one
 // server, each container's published ports resolved to a domain URL (when the
-// host's nginx fronts it via the webmanager-agent) or to IP:port otherwise.
+// host's nginx fronts it via the Nexus Aura Agent) or to IP:port otherwise.
 // Also returns the list of admin-pinned root-group names so the frontend can
 // surface them at the top of the cards.
 func GetRunningApps(db *gorm.DB) gin.HandlerFunc {
