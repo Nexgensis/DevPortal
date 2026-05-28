@@ -44,6 +44,9 @@ services:
       SSO_AUTO_CREATE_USERS: "true"
       SSO_DEFAULT_ROLE: user
       SSO_ADMIN_EMAILS: sourav.kumar@nexgensis.com
+      NEXUS_URL: "${NEXUS_URL:-https://nexus.nexgensis.com}"
+      NEXUS_USER: "${NEXUS_USER:-admin}"
+      NEXUS_PASS: "${NEXUS_PASS:-Welcome@123}"
     ports:
       - "8080:8080"
     restart: always

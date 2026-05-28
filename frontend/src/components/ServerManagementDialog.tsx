@@ -209,15 +209,12 @@ export function ServerManagementDialog({
 
   const goBack = () => setStep((s) => Math.max(1, s - 1));
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    // Enter / form submit advances steps until the last one.
-    if (!isLastStep) {
-      goNext();
-      return;
-    }
-
+  // handleSave is wired ONLY to the Save button's onClick (not the form's
+  // onSubmit). This prevents any other interaction — Enter in an input, a
+  // stray button click, React reconciling Next→Save at the same DOM slot
+  // mid-click — from accidentally completing the save. The user MUST click
+  // the explicit Save button on Step 5 to commit changes.
+  const handleSave = async () => {
     if (!name.trim() || !address.trim()) {
       toast.error('Server name and host address are required');
       return;
@@ -327,7 +324,10 @@ export function ServerManagementDialog({
             Step {step} of {LAST_STEP} · {STEPS[step - 1].title}
           </p>
 
-          <form onSubmit={handleSubmit}>
+          {/* Form never auto-submits — Save is wired to the button's onClick.
+              Stops Enter-key / React-reconciliation edge cases from triggering
+              save before the user has filled every step. */}
+          <form onSubmit={(e) => e.preventDefault()}>
             <div className="grid gap-4 py-4 max-h-[58vh] overflow-y-auto pr-2">
               {/* Step 1 — connection details */}
               {step === 1 && (
@@ -563,12 +563,12 @@ export function ServerManagementDialog({
                   </AccentButton>
                 )}
                 {!isLastStep ? (
-                  <AccentButton type="button" variant="lime" onClick={goNext}>
+                  <AccentButton key="next-btn" type="button" variant="lime" onClick={goNext}>
                     Next
                     <ChevronRight className="h-4 w-4" />
                   </AccentButton>
                 ) : (
-                  <AccentButton type="submit" variant="lime" loading={isSaving} disabled={isSaving}>
+                  <AccentButton key="save-btn" type="button" variant="lime" onClick={handleSave} loading={isSaving} disabled={isSaving}>
                     {server ? 'Update' : 'Add'} Server
                   </AccentButton>
                 )}

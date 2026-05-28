@@ -90,17 +90,17 @@ export const ServerPickerCard = ({ name, address, status, onClick, stats }: Serv
             uses cqw clamp + containerType so it scales gracefully with the
             card width: bigger on wider cards, never overflowing on narrow. */}
         <div
-          className="relative sm:col-span-3 rounded-[20px] px-6 py-6 flex flex-col overflow-hidden"
+          className="relative sm:col-span-3 rounded-[18px] px-4 py-4 flex flex-col overflow-hidden"
           style={{
             background: tone.bg,
             color: tone.ink,
-            minHeight: '210px',
+            minHeight: '160px',
             containerType: 'inline-size',
           }}
         >
-          <div className="flex items-center gap-1.5 text-[12px] font-semibold" style={{ color: tone.accent }}>
+          <div className="flex items-center gap-1.5 text-[11px] font-semibold" style={{ color: tone.accent }}>
             <span aria-hidden className="h-1.5 w-1.5 rounded-full" style={{ background: tone.accent }} />
-            <Icon className="h-3.5 w-3.5" strokeWidth={2.5} />
+            <Icon className="h-3 w-3" strokeWidth={2.5} />
             <span className="uppercase tracking-wider">{tone.label}</span>
           </div>
 
@@ -109,19 +109,19 @@ export const ServerPickerCard = ({ name, address, status, onClick, stats }: Serv
             <div
               className="font-bold tracking-tight break-all line-clamp-2"
               style={{
-                fontSize: 'clamp(36px, 12cqw, 64px)',
-                lineHeight: 0.98,
+                fontSize: 'clamp(24px, 10cqw, 40px)',
+                lineHeight: 1.02,
                 letterSpacing: '-0.02em',
               }}
             >
               {name}
             </div>
-            {/* Larger host address — scales similarly but capped lower. */}
+            {/* Host address — scales similarly but capped lower. */}
             <div
-              className="truncate font-medium font-mono tabular-nums mt-2"
+              className="truncate font-medium font-mono tabular-nums mt-1.5"
               style={{
                 color: tone.subtle,
-                fontSize: 'clamp(13px, 3.5cqw, 18px)',
+                fontSize: 'clamp(11px, 3cqw, 14px)',
                 letterSpacing: '-0.01em',
               }}
             >
@@ -132,18 +132,18 @@ export const ServerPickerCard = ({ name, address, status, onClick, stats }: Serv
 
         {/* Light stats panel — three big numbers + uppercase labels, footer open hint. */}
         <div
-          className="sm:col-span-2 rounded-[20px] px-5 py-5 flex flex-col"
-          style={{ background: 'var(--canvas-soft)', color: 'var(--ink)', minHeight: '210px' }}
+          className="sm:col-span-2 rounded-[18px] px-3.5 py-3.5 flex flex-col"
+          style={{ background: 'var(--canvas-soft)', color: 'var(--ink)', minHeight: '160px' }}
         >
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-2">
             <StatRow icon={Box}        value={fmt(stats?.containers)}   label="Containers" />
             <StatRow icon={FileCode2}  value={fmt(stats?.composeFiles)} label="Compose files" />
             <StatRow icon={Layers}     value={fmt(stats?.projects)}     label="Projects" />
           </div>
-          <div className="mt-auto pt-3 flex items-center justify-end gap-1 text-[12px] font-medium text-[var(--ink-muted)] group-hover:text-[var(--ink)]">
-            <ServerIcon className="h-3.5 w-3.5" strokeWidth={2} />
+          <div className="mt-auto pt-2 flex items-center justify-end gap-1 text-[11px] font-medium text-[var(--ink-muted)] group-hover:text-[var(--ink)]">
+            <ServerIcon className="h-3 w-3" strokeWidth={2} />
             <span>Open</span>
-            <ChevronRight className="h-3.5 w-3.5" strokeWidth={2} />
+            <ChevronRight className="h-3 w-3" strokeWidth={2} />
           </div>
         </div>
       </div>
@@ -154,13 +154,13 @@ export const ServerPickerCard = ({ name, address, status, onClick, stats }: Serv
 // StatRow — single stat line on the light panel: icon chip + big number + label.
 // Big number sits as the focal element; label is a subtler one-liner below.
 const StatRow = ({ icon: Icon, value, label }: { icon: LucideIcon; value: string; label: string }) => (
-  <div className="flex items-center gap-3 min-w-0">
-    <div className="h-8 w-8 rounded-lg flex items-center justify-center shrink-0 bg-[var(--card)] border border-[var(--border)]">
-      <Icon className="h-3.5 w-3.5 text-[var(--ink-muted)]" strokeWidth={2} />
+  <div className="flex items-center gap-2.5 min-w-0">
+    <div className="h-7 w-7 rounded-lg flex items-center justify-center shrink-0 bg-[var(--card)] border border-[var(--border)]">
+      <Icon className="h-3 w-3 text-[var(--ink-muted)]" strokeWidth={2} />
     </div>
     <div className="min-w-0 flex-1">
-      <div className="text-[18px] font-bold leading-none tabular-nums text-[var(--ink)]">{value}</div>
-      <div className="text-[10.5px] uppercase tracking-wider text-[var(--ink-muted)] mt-0.5 truncate">{label}</div>
+      <div className="text-[15px] font-bold leading-none tabular-nums text-[var(--ink)]">{value}</div>
+      <div className="text-[10px] uppercase tracking-wider text-[var(--ink-muted)] mt-0.5 truncate">{label}</div>
     </div>
   </div>
 );
