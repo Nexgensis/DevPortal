@@ -137,7 +137,7 @@ const ContainerRow = ({ c, projectName }: { c: ContainerView; projectName: strin
         boxShadow: p.chassisShadow,
       }}
     >
-      {/* Header strip — icon chip + container name as the title. */}
+      {/* Header strip — icon chip + project name as the title. */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px', paddingLeft: '8px', paddingRight: '8px', minWidth: 0 }}>
         <div
           aria-hidden
@@ -159,15 +159,15 @@ const ContainerRow = ({ c, projectName }: { c: ContainerView; projectName: strin
           style={{
             color: p.title,
             fontWeight: 700,
-            fontSize: '14px',
+            fontSize: '16px',
             letterSpacing: '-0.3px',
             lineHeight: 1.15,
             minWidth: 0,
             flex: 1,
           }}
-          title={c.name}
+          title={projectName}
         >
-          {c.name}
+          {projectName}
         </div>
       </div>
 
@@ -192,10 +192,10 @@ const ContainerRow = ({ c, projectName }: { c: ContainerView; projectName: strin
           aria-hidden
           className="absolute pointer-events-none"
           style={{
-            bottom: '-40px',
-            right: '-22px',
-            width: '150px',
-            height: '150px',
+            bottom: '-30px',
+            right: '-18px',
+            width: '100px',
+            height: '100px',
             borderRadius: '50%',
             background: p.circleVector,
             zIndex: 1,
@@ -206,10 +206,10 @@ const ContainerRow = ({ c, projectName }: { c: ContainerView; projectName: strin
           aria-hidden
           className="absolute pointer-events-none"
           style={{
-            bottom: '8px',
-            right: '-16px',
-            width: '40px',
-            height: '108px',
+            bottom: '10px',
+            right: '-10px',
+            width: '26px',
+            height: '72px',
             borderRadius: '40px',
             background: p.capsuleVector,
             transform: 'rotate(135deg)',
@@ -250,9 +250,9 @@ const ContainerRow = ({ c, projectName }: { c: ContainerView; projectName: strin
           </a>
         )}
 
-        {/* Content: tiny project label → big focal text (domain/URL or container
+        {/* Content: tiny container label → focal text (domain/URL or container
             name fallback) → status pill on its own row. */}
-        <div style={{ position: 'relative', zIndex: 5, display: 'flex', flexDirection: 'column', minWidth: 0, gap: '10px' }}>
+        <div style={{ position: 'relative', zIndex: 5, display: 'flex', flexDirection: 'column', minWidth: 0, gap: '8px' }}>
           <div
             className="truncate"
             style={{
@@ -263,42 +263,45 @@ const ContainerRow = ({ c, projectName }: { c: ContainerView; projectName: strin
               textTransform: 'uppercase',
               paddingRight: '44px', // clear the action button
             }}
-            title={projectName}
+            title={c.name}
           >
-            {projectName}
+            {c.name}
           </div>
 
-          {/* Focal: domain / IP:port / container name — fills full row, wraps
-              gracefully on narrow cards. Linkified when a URL exists. */}
+          {/* Focal: domain / IP:port / container name — THE HERO of the card.
+              Scales aggressively with card width; wraps for very long domains
+              rather than ellipsizing so the full URL stays readable. */}
           {primary ? (
             <a
               href={primary.url}
               target="_blank"
               rel="noreferrer noopener"
               onClick={(e) => e.stopPropagation()}
+              className="hover:underline underline-offset-4 block"
               style={{
                 color: p.bigText,
                 fontWeight: 800,
-                fontSize: 'clamp(22px, 9cqw, 38px)',
-                letterSpacing: '-1.2px',
-                lineHeight: 1.0,
+                fontSize: 'clamp(18px, 8.2cqw, 30px)',
+                letterSpacing: '-0.9px',
+                lineHeight: 1.05,
                 textDecoration: 'none',
                 wordBreak: 'break-word',
                 overflowWrap: 'anywhere',
                 maxWidth: '100%',
               }}
-              className="hover:underline underline-offset-4"
+              title={bigText}
             >
               {bigText}
             </a>
           ) : (
             <span
+              className="block"
               style={{
                 color: p.bigText,
                 fontWeight: 800,
-                fontSize: 'clamp(22px, 9cqw, 38px)',
-                letterSpacing: '-1.2px',
-                lineHeight: 1.0,
+                fontSize: 'clamp(18px, 8.2cqw, 30px)',
+                letterSpacing: '-0.9px',
+                lineHeight: 1.05,
                 wordBreak: 'break-word',
                 overflowWrap: 'anywhere',
                 maxWidth: '100%',
@@ -475,9 +478,11 @@ export const RunningApps = () => {
               <Rocket className="h-6 w-6 text-[var(--ink)]" />
             </div>
           )}
-          <div className="flex-1">
-            <h2 className="text-xl font-semibold text-[var(--ink)]">
-              {selectedGroup ? `/root/${selectedGroup}` : selectedServerData?.name || 'Server'}
+          <div className="flex-1 min-w-0">
+            <h2 className="text-xl font-semibold text-[var(--ink)] truncate" title={selectedGroup ? `${selectedServerData?.name ?? ''}/root/${selectedGroup}` : selectedServerData?.name}>
+              {selectedGroup
+                ? `${selectedServerData?.name ?? ''}/root/${selectedGroup}`
+                : selectedServerData?.name || 'Server'}
             </h2>
             <p className="text-[var(--ink-muted)] text-sm">
               {selectedGroup
@@ -613,7 +618,7 @@ export const RunningApps = () => {
           {/* ── Cards grid (fluid; fills the remaining width) ── */}
           <div className="flex-1 min-w-0">
           {loading && rootGroups.length === 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
               <GlassSkeleton.Card count={6} />
             </div>
           ) : rootGroups.length === 0 ? (
@@ -634,7 +639,7 @@ export const RunningApps = () => {
                 </defs>
               </svg>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
                 {rootGroups.map((g) => {
                   // Per-theme palette. Dark = premium-glossy (red/blue gradient
                   // + dark body + glossy sheen). Light = the previous flat
@@ -903,7 +908,7 @@ export const RunningApps = () => {
             {drillSplit.frontends.length === 0 ? (
               <p className="text-sm text-[var(--ink-muted)]">No containers with published ports.</p>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
                 {drillSplit.frontends.map(({ c, project }) => (
                   <ContainerRow key={c.id} c={c} projectName={project} />
                 ))}
@@ -933,7 +938,7 @@ export const RunningApps = () => {
               drillSplit.services.length === 0 ? (
                 <p className="text-sm text-[var(--ink-muted)]">No background services.</p>
               ) : (
-                <div id="services-list" className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                <div id="services-list" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
                   {drillSplit.services.map(({ c, project }) => (
                     <ContainerRow key={c.id} c={c} projectName={project} />
                   ))}

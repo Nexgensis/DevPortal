@@ -13,7 +13,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from './ui/alert-dialog';
-import { Users, Plus, Edit, Trash2, User as UserIcon, Search, ChevronDown, Shield } from 'lucide-react';
+import { Users, Plus, Trash2, User as UserIcon, ChevronDown, Shield, Power } from 'lucide-react';
 import { User } from '../types/app';
 import { PillTag } from './ui/pill-tag';
 import { StatusBadge } from './ui/status-badge';
@@ -27,42 +27,30 @@ import {
 } from './ui/dropdown-menu';
 import { GlassSkeleton } from './ui/glass-skeleton';
 import { AccentButton } from './ui/accent-button';
-import { useApps } from '../hooks/useApps';
-import { useServers } from '../hooks/useServers';
-
 // ─── UserCard ───────────────────────────────────────────────────────────────
-// One card per user. Self-contained: keeps its own "Assign App" search state
-// and the filtered list of "assigned team members" (other admins in the system).
+// Compact per-user card: avatar + email + name (dropdown actions) + status pill
+// + role chip. Previous incarnation showed a fake "Assign App" section (no
+// backend) and a global fleet-stats footer (identical on every card) — both
+// removed in the cleanup since they were filler, not data.
 function UserCard({
   user,
-  otherAdmins,
-  appsCount,
-  serversOnlineCount,
-  onEdit,
+  onToggleRole,
+  onToggleActive,
   onDelete,
 }: {
   user: User;
-  otherAdmins: User[];
-  appsCount: number;
-  serversOnlineCount: number;
-  onEdit: (u: User) => void;
+  onToggleRole: (u: User) => void;
+  onToggleActive: (u: User) => void;
   onDelete: (u: User) => void;
 }) {
-  const [search, setSearch] = useState('');
   const display = user.fullName || user.username;
 
-  const members = otherAdmins.filter((u) => {
-    if (!search.trim()) return true;
-    const q = search.toLowerCase();
-    return (u.fullName || u.username).toLowerCase().includes(q) || u.email.toLowerCase().includes(q);
-  });
-
   return (
-    <div className="rounded-2xl bg-white dark:bg-[#1A1A1E] border border-gray-200/80 dark:border-zinc-800 p-6 sm:p-8 flex flex-col">
-      {/* ── Top header: avatar + email/name (+ dropdown actions) ── */}
-      <div className="flex items-start gap-4">
-        <div className="h-12 w-12 rounded-full bg-gray-100 dark:bg-zinc-800 flex items-center justify-center shrink-0">
-          <UserIcon className="h-6 w-6 text-gray-500 dark:text-zinc-400" />
+    <div className="rounded-2xl bg-white dark:bg-[#1A1A1E] border border-gray-200/80 dark:border-zinc-800 p-5 flex flex-col gap-4">
+      {/* Top header: avatar + email/name + dropdown actions */}
+      <div className="flex items-start gap-3">
+        <div className="h-10 w-10 rounded-full bg-gray-100 dark:bg-zinc-800 flex items-center justify-center shrink-0">
+          <UserIcon className="h-5 w-5 text-gray-500 dark:text-zinc-400" />
         </div>
         <div className="flex-1 min-w-0">
           <div className="text-xs text-gray-500 dark:text-zinc-400 truncate">{user.email}</div>
@@ -79,10 +67,15 @@ function UserCard({
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-44 z-[100] p-1">
-              <DropdownMenuItem className="cursor-pointer rounded-md" onSelect={(e) => { e.preventDefault(); onEdit(user); }}>
-                <Edit className="h-4 w-4 mr-2" /> Edit User
+              <DropdownMenuItem className="cursor-pointer rounded-md" onSelect={() => onToggleRole(user)}>
+                <Shield className="h-4 w-4 mr-2" />
+                {user.role === 'admin' ? 'Make user' : 'Make admin'}
               </DropdownMenuItem>
-              <DropdownMenuItem className="cursor-pointer rounded-md text-red-600 dark:text-red-400" onSelect={(e) => { e.preventDefault(); onDelete(user); }}>
+              <DropdownMenuItem className="cursor-pointer rounded-md" onSelect={() => onToggleActive(user)}>
+                <Power className="h-4 w-4 mr-2" />
+                {user.isActive ? 'Disable user' : 'Enable user'}
+              </DropdownMenuItem>
+              <DropdownMenuItem className="cursor-pointer rounded-md text-red-600 dark:text-red-400" onSelect={() => onDelete(user)}>
                 <Trash2 className="h-4 w-4 mr-2" /> Delete User
               </DropdownMenuItem>
             </DropdownMenuContent>
@@ -90,62 +83,15 @@ function UserCard({
         </div>
       </div>
 
-      {/* Status pill */}
-      <div className="mt-4">
-        <StatusBadge status={user.isActive ? 'online' : 'offline'} />
-      </div>
-
-      {/* ── Divider ── */}
-      <div className="my-6 h-px bg-gray-200 dark:bg-zinc-800" />
-
-      {/* ── Middle: Assign App ── */}
-      <div>
-        <h3 className="text-sm font-semibold text-gray-900 dark:text-zinc-100 mb-3">Assign App</h3>
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 dark:text-zinc-500 pointer-events-none" />
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search App"
-            className="w-full h-10 pl-9 pr-3 rounded-xl bg-gray-50 dark:bg-zinc-900 border border-gray-200/80 dark:border-zinc-800 text-sm text-gray-900 dark:text-zinc-100 placeholder:text-gray-400 dark:placeholder:text-zinc-500 focus:outline-none focus:border-gray-300 dark:focus:border-zinc-700 transition-colors"
-          />
-        </div>
-      </div>
-
-      {/* ── Assigned Members list ── */}
-      <div className="mt-4 space-y-2">
-        {members.length === 0 ? (
-          <div className="text-xs text-gray-500 dark:text-zinc-400 px-3 py-2.5 rounded-xl bg-gray-50/80 dark:bg-zinc-900">
-            No members match.
-          </div>
-        ) : (
-          members.map((m) => (
-            <div
-              key={m.id}
-              className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-gray-50/80 dark:bg-zinc-900"
-            >
-              <div className="h-7 w-7 rounded-full bg-gray-200 dark:bg-zinc-800 flex items-center justify-center shrink-0">
-                <UserIcon className="h-4 w-4 text-gray-500 dark:text-zinc-400" />
-              </div>
-              <span className="flex-1 truncate text-sm text-gray-900 dark:text-zinc-100">
-                {m.fullName || m.username}
-              </span>
-              {m.role === 'admin' && (
-                <PillTag tone="purple" icon={Shield} size="sm">admin</PillTag>
-              )}
-            </div>
-          ))
+      {/* Status + role */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <StatusBadge
+          status={user.isActive ? 'online' : 'offline'}
+          label={user.isActive ? 'Active' : 'Disabled'}
+        />
+        {user.role === 'admin' && (
+          <PillTag tone="purple" icon={Shield} size="sm">admin</PillTag>
         )}
-      </div>
-
-      {/* ── Footer: bold 3-line server metrics ── */}
-      <div className="mt-6 pt-6 border-t border-gray-200 dark:border-zinc-800">
-        <div className="text-2xl font-bold leading-snug text-gray-900 dark:text-zinc-100 tabular-nums">
-          {appsCount} apps -<br />
-          {serversOnlineCount} servers<br />
-          online
-        </div>
       </div>
     </div>
   );
@@ -167,13 +113,6 @@ export function UserManagement() {
     role: 'user',
   });
 
-  // Footer metric source: live counts from the existing apps/servers hooks so
-  // each card reflects "what's running across the fleet" (the spec text reads
-  // as a system status block, not a per-user attribute).
-  const { apps } = useApps();
-  const { servers } = useServers();
-  const appsCount = apps.length;
-  const serversOnlineCount = servers.filter((s) => s.status === 'online').length;
 
   useEffect(() => {
     loadUsers();
@@ -227,16 +166,34 @@ export function UserManagement() {
     }
   };
 
-  const handleEdit = (user: User) => {
-    setEditingUser(user);
-    setFormData({
-      username: user.username,
-      email: user.email,
-      fullName: user.fullName || '',
-      password: '',
-      role: user.role,
-    });
-    setDialogOpen(true);
+  // Flip a user between 'admin' and 'user' via a partial update — no dialog,
+  // no other fields touched, just the role.
+  const handleToggleRole = async (user: User) => {
+    const newRole: 'admin' | 'user' = user.role === 'admin' ? 'user' : 'admin';
+    try {
+      const updated = await userApi.update(user.id, { role: newRole });
+      setUsers((prev) => prev.map((u) => (u.id === user.id ? updated : u)));
+      toast.success(
+        `${user.fullName || user.username} is now ${newRole === 'admin' ? 'an admin' : 'a regular user'}`,
+      );
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to update role');
+    }
+  };
+
+  // Disable / enable a user — partial update on isActive only. Disabled users
+  // cannot log in but their data is preserved (use Delete for permanent removal).
+  const handleToggleActive = async (user: User) => {
+    const newActive = !user.isActive;
+    try {
+      const updated = await userApi.update(user.id, { isActive: newActive });
+      setUsers((prev) => prev.map((u) => (u.id === user.id ? updated : u)));
+      toast.success(
+        `${user.fullName || user.username} ${newActive ? 'enabled' : 'disabled'}`,
+      );
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to update user');
+    }
   };
 
   const confirmDelete = async () => {
@@ -344,15 +301,13 @@ export function UserManagement() {
           <p className="text-gray-500 dark:text-zinc-400 mb-4 max-w-md mx-auto">Click "Add User" to create your first user.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-8 lg:gap-10">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
           {users.map((user) => (
             <UserCard
               key={user.id}
               user={user}
-              otherAdmins={users.filter((u) => u.id !== user.id && u.role === 'admin')}
-              appsCount={appsCount}
-              serversOnlineCount={serversOnlineCount}
-              onEdit={handleEdit}
+              onToggleRole={handleToggleRole}
+              onToggleActive={handleToggleActive}
               onDelete={setUserToDelete}
             />
           ))}

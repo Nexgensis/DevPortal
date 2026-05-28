@@ -53,16 +53,16 @@ export function FolderTabs({ active, onNavigate, isAdmin }: FolderTabsProps) {
               // Physically overlap: each tab's right tail tucks under the next.
               marginRight: i === folders.length - 1 ? 0 : '-30px',
             } as any}
-            className={`folder-tab flex w-72 shrink-0 items-center justify-start gap-3 whitespace-nowrap pl-7 pr-16 text-lg focus:outline-none transition-all duration-200 ease-in-out ${
+            className={`folder-tab flex w-44 sm:w-52 md:w-60 lg:w-72 shrink-0 items-center justify-start gap-2 md:gap-3 whitespace-nowrap pl-4 pr-8 md:pl-7 md:pr-16 text-sm md:text-base lg:text-lg focus:outline-none transition-all duration-200 ease-in-out ${
               isActive
                 // Active: heavy editorial serif, high-contrast ink, tallest box.
-                ? 'pt-10 pb-5 font-display font-bold text-[var(--ink)]'
+                ? 'pt-7 md:pt-9 lg:pt-10 pb-4 md:pb-5 font-display font-bold text-[var(--ink)]'
                 // Inactive: bold geometric sans, crisp white on the vivid colour.
-                : 'pt-7 pb-5 font-sans font-semibold text-white opacity-95 hover:pt-9'
+                : 'pt-5 md:pt-6 lg:pt-7 pb-4 md:pb-5 font-sans font-semibold text-white opacity-95 hover:pt-7 md:hover:pt-8 lg:hover:pt-9'
             }`}
           >
-            <Icon className={`shrink-0 ${isActive ? 'h-6 w-6' : 'h-[22px] w-[22px]'}`} strokeWidth={isActive ? 2.25 : 2} />
-            <span>{f.label}</span>
+            <Icon className={`shrink-0 ${isActive ? 'h-5 w-5 md:h-6 md:w-6' : 'h-5 w-5 md:h-[22px] md:w-[22px]'}`} strokeWidth={isActive ? 2.25 : 2} />
+            <span className="truncate">{f.label}</span>
           </button>
         );
       })}
