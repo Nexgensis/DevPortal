@@ -1,22 +1,34 @@
 import { useState, useEffect } from 'react';
-import { Badge } from './ui/badge';
 import { Input } from './ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-import { FileText, RefreshCw, User, Play, Square, Plus, Edit, Trash2 } from 'lucide-react';
+import { FileText, RefreshCw, User, Play, Square, Plus, Edit, Trash2, Pin as PinIcon } from 'lucide-react';
 import { AuditLog } from '../types/app';
 import { auditApi } from '../lib/api';
 import { toast } from 'sonner';
 import { GlassCard } from './ui/glass-card';
 import { AccentButton } from './ui/accent-button';
 import { GlassSkeleton } from './ui/glass-skeleton';
+import { PillTag, PillTone } from './ui/pill-tag';
 
-const ACTION_COLOR_CLASSES = {
-  start: 'bg-[color-mix(in_srgb,var(--accent-lime)_18%,transparent)] text-emerald-300 border-[color-mix(in_srgb,var(--accent-lime)_40%,transparent)]',
-  stop: 'bg-[color-mix(in_srgb,var(--accent-destructive)_14%,transparent)] text-red-300 border-[color-mix(in_srgb,var(--accent-destructive)_36%,transparent)]',
-  create: 'bg-[color-mix(in_srgb,var(--accent-cyan)_18%,transparent)] text-cyan-300 border-[color-mix(in_srgb,var(--accent-cyan)_40%,transparent)]',
-  update: 'bg-amber-500/15 text-amber-300 border-amber-300/60',
-  delete: 'bg-[color-mix(in_srgb,var(--accent-destructive)_14%,transparent)] text-red-300 border-[color-mix(in_srgb,var(--accent-destructive)_36%,transparent)]',
-  neutral: 'bg-black/5 text-[var(--ink)] border-black/8',
+// Action verb → PillTag tone + icon. start = live (green), stop/delete =
+// terminal (red), create = new (cyan), update = mutating (amber), pin = promoted
+// (orange), neutral fallback = slate.
+type ActionSpec = { tone: PillTone; icon: React.ComponentType<{ className?: string }> };
+const ACTION_SPEC: Record<string, ActionSpec> = {
+  start:  { tone: 'green',  icon: Play },
+  stop:   { tone: 'red',    icon: Square },
+  create: { tone: 'cyan',   icon: Plus },
+  update: { tone: 'amber',  icon: Edit },
+  delete: { tone: 'red',    icon: Trash2 },
+  pin:    { tone: 'orange', icon: PinIcon },
+  unpin:  { tone: 'slate',  icon: PinIcon },
+};
+
+const actionSpec = (action: string): ActionSpec => {
+  for (const key of Object.keys(ACTION_SPEC)) {
+    if (action.includes(key)) return ACTION_SPEC[key];
+  }
+  return { tone: 'slate', icon: FileText };
 };
 
 export function AuditLogs() {
@@ -60,40 +72,6 @@ export function AuditLogs() {
     }
   };
 
-  const getActionIcon = (action: string) => {
-    switch (action) {
-      case 'start_app':
-        return <Play className="h-4 w-4 text-emerald-300" />;
-      case 'stop_app':
-        return <Square className="h-4 w-4 text-red-300" />;
-      case 'create_app':
-      case 'create_server':
-      case 'create_project':
-      case 'create_user':
-        return <Plus className="h-4 w-4 text-cyan-300" />;
-      case 'update_app':
-      case 'update_server':
-      case 'update_project':
-      case 'update_user':
-        return <Edit className="h-4 w-4 text-amber-300" />;
-      case 'delete_app':
-      case 'delete_server':
-      case 'delete_project':
-      case 'delete_user':
-        return <Trash2 className="h-4 w-4 text-red-300" />;
-      default:
-        return <FileText className="h-4 w-4 text-[var(--ink-muted)]" />;
-    }
-  };
-
-  const getActionColor = (action: string) => {
-    if (action.includes('start')) return ACTION_COLOR_CLASSES.start;
-    if (action.includes('stop')) return ACTION_COLOR_CLASSES.stop;
-    if (action.includes('create')) return ACTION_COLOR_CLASSES.create;
-    if (action.includes('update')) return ACTION_COLOR_CLASSES.update;
-    if (action.includes('delete')) return ACTION_COLOR_CLASSES.delete;
-    return ACTION_COLOR_CLASSES.neutral;
-  };
 
   const formatDuration = (details: string) => {
     const durationMatch = details.match(/Duration: ([^,]+)/);
@@ -185,10 +163,14 @@ export function AuditLogs() {
             >
               <div className="flex items-center gap-4 flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-shrink-0">
-                  {getActionIcon(log.action)}
-                  <Badge className={`${getActionColor(log.action)} border`}>
-                    {log.action.replace('_', ' ')}
-                  </Badge>
+                  {(() => {
+                    const spec = actionSpec(log.action);
+                    return (
+                      <PillTag tone={spec.tone} icon={spec.icon as never} size="sm">
+                        {log.action.replace(/_/g, ' ')}
+                      </PillTag>
+                    );
+                  })()}
                 </div>
 
                 <div className="flex-1 min-w-0">
@@ -197,9 +179,9 @@ export function AuditLogs() {
                     <span className="truncate font-medium text-[var(--ink)]">{log.username}</span>
                     <span className="text-[var(--ink-muted)] flex-shrink-0">•</span>
                     <span className="truncate text-[var(--ink)]">{log.resourceName}</span>
-                    <Badge variant="secondary" className="flex-shrink-0 bg-black/5 text-[var(--ink)] border border-black/8">
+                    <PillTag tone="slate" size="sm" className="flex-shrink-0">
                       {log.resourceType}
-                    </Badge>
+                    </PillTag>
                   </div>
 
                   <div className="text-sm text-[var(--ink-muted)] truncate">

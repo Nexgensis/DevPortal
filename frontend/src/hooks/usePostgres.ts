@@ -82,7 +82,15 @@ export const usePostgres = () => {
     }
   };
 
-  const createDump = async (request: PostgresDumpRequest): Promise<Blob> => {
+  // createDump streams the pg_dump response chunk-by-chunk via the body reader
+  // instead of buffering with response.blob(). `onProgress` is called with the
+  // running byte count plus Content-Length when known — chunked transfers from
+  // pg_dump usually don't set Content-Length, so callers should treat a null
+  // `total` as "indeterminate, show bytes received".
+  const createDump = async (
+    request: PostgresDumpRequest,
+    opts?: { onProgress?: (received: number, total: number | null) => void },
+  ): Promise<Blob> => {
     setLoading(true);
     setError(null);
     try {
@@ -101,8 +109,32 @@ export const usePostgres = () => {
         throw new Error(errorData.error || `Failed to create dump: ${response.statusText}`);
       }
 
-      const blob = await response.blob();
-      return blob;
+      const contentLengthHeader = response.headers.get('Content-Length');
+      const total = contentLengthHeader ? parseInt(contentLengthHeader, 10) : null;
+      const contentType = response.headers.get('Content-Type') || 'application/octet-stream';
+
+      // No body reader? Fall back to blob() so we don't break older browsers.
+      if (!response.body) {
+        const blob = await response.blob();
+        opts?.onProgress?.(blob.size, blob.size);
+        return blob;
+      }
+
+      const reader = response.body.getReader();
+      const chunks: Uint8Array[] = [];
+      let received = 0;
+      // Prime the bar at 0 so the UI flips into "downloading" state immediately.
+      opts?.onProgress?.(0, total);
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (value) {
+          chunks.push(value);
+          received += value.byteLength;
+          opts?.onProgress?.(received, total);
+        }
+      }
+      return new Blob(chunks as BlobPart[], { type: contentType });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to create database dump';
       setError(message);

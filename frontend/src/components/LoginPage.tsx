@@ -3,7 +3,7 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import {
   AlertCircle, ArrowRight,
-  Server, Database, Boxes, Clock,
+  Download, Database, Boxes, Clock,
 } from 'lucide-react';
 import { AccentButton } from './ui/accent-button';
 import { NexusMark } from './NexusAuraMark';
@@ -13,13 +13,15 @@ import {
 
 // Floating tech-logo chips scattered around the hero. Each carries its brand color,
 // a slow float (varied duration/delay) and an absolute position on the canvas.
+// Arranged as a balanced arc/ring bracketing the login card — each side bulges
+// outward at the middle (24%) and tucks in at the top/bottom (33%), like the reference.
 const LOGO_CHIPS = [
-  { Logo: GitLogo,        name: 'Git',             color: '#F05032', pos: 'left-[30%] top-[55%]',  dur: '10s', delay: '0s'  },
-  { Logo: DockerLogo,     name: 'Docker',          color: '#2496ED', pos: 'left-[27%] top-[69%]',  dur: '13s', delay: '-7s' },
-  { Logo: SonarCloudLogo, name: 'SonarQube Cloud', color: '#126ED3', pos: 'left-[30%] top-[83%]',  dur: '12s', delay: '-5s' },
-  { Logo: GitHubLogo,     name: 'GitHub',          color: '#181717', pos: 'right-[30%] top-[55%]', dur: '11s', delay: '-3s' },
-  { Logo: PostgresLogo,   name: 'PostgreSQL',      color: '#336791', pos: 'right-[27%] top-[69%]', dur: '9s',  delay: '-4s' },
-  { Logo: TrivyLogo,      name: 'Trivy',           color: '#1904DA', pos: 'right-[30%] top-[83%]', dur: '14s', delay: '-2s' },
+  { Logo: GitLogo,        name: 'Git',             color: '#F05032', pos: 'left-[26%] top-[30%]',  dur: '10s', delay: '0s'  },
+  { Logo: DockerLogo,     name: 'Docker',          color: '#2496ED', pos: 'left-[24%] top-[55%]',  dur: '13s', delay: '-7s' },
+  { Logo: SonarCloudLogo, name: 'SonarQube Cloud', color: '#126ED3', pos: 'left-[28%] top-[80%]',  dur: '12s', delay: '-5s' },
+  { Logo: GitHubLogo,     name: 'GitHub',          color: '#181717', pos: 'right-[21%] top-[38%]', dur: '11s', delay: '-3s' },
+  { Logo: PostgresLogo,   name: 'PostgreSQL',      color: '#336791', pos: 'right-[24%] top-[55%]', dur: '9s',  delay: '-4s' },
+  { Logo: TrivyLogo,      name: 'Trivy',           color: '#1904DA', pos: 'right-[28%] top-[80%]', dur: '14s', delay: '-2s' },
 ] as const;
 
 // Time-of-day greeting. Buckets: 5–12 morning, 12–17 afternoon, else evening.
@@ -128,31 +130,31 @@ export function LoginPage({ onLogin }: LoginPageProps) {
 
         {/* ---- Floating accent cards (live status, lg screens only) ---- */}
         <div aria-hidden className="pointer-events-none absolute inset-0 hidden lg:block">
-          {/* top-left: server deploy card */}
+          {/* top-left: database dump (download) card */}
           <div
-            className="card-float absolute left-[5%] top-[14%] w-60 rounded-2xl border border-gray-200/70 bg-white p-4 shadow-[0_18px_44px_-16px_rgba(80,40,120,0.22)]"
+            className="card-float absolute left-[15%] top-[15%] w-60 rounded-2xl border border-gray-200/70 bg-white p-4 shadow-[0_18px_44px_-16px_rgba(80,40,120,0.22)]"
             style={{ animationDuration: '10s' }}
           >
             <div className="flex items-center gap-3">
-              <span className="grid h-10 w-10 place-items-center rounded-xl bg-emerald-50 text-emerald-600">
-                <Server className="h-5 w-5" />
+              <span className="grid h-10 w-10 place-items-center rounded-xl bg-violet-50 text-violet-600">
+                <Download className="h-5 w-5" />
               </span>
               <div className="min-w-0">
-                <p className="text-sm font-semibold text-[#1A1A1E] truncate">web-frontend</p>
-                <p className="text-[11px] text-[#1A1A1E]/50">Deployed Wed 27 Oct, 2026</p>
+                <p className="text-sm font-semibold text-[#1A1A1E] truncate">Database Dump</p>
+                <p className="text-[11px] text-[#1A1A1E]/50">postgres · 27 Oct, 2026</p>
               </div>
             </div>
             <div className="mt-3 flex items-center justify-between text-[11px] text-[#1A1A1E]/55">
-              <span>v2.4.1 · healthy</span><span>100%</span>
+              <span>1.2 GB · downloading</span><span>64%</span>
             </div>
             <div className="mt-1.5 h-1.5 w-full rounded-full bg-gray-100">
-              <div className="h-full w-full rounded-full bg-emerald-500" />
+              <div className="h-full w-[64%] rounded-full bg-violet-500" />
             </div>
           </div>
 
           {/* top-right: database card */}
           <div
-            className="card-float absolute right-[5%] top-[18%] w-60 rounded-2xl border border-gray-200/70 bg-white p-4 shadow-[0_18px_44px_-16px_rgba(80,40,120,0.22)]"
+            className="card-float absolute right-[17%] top-[14%] w-60 rounded-2xl border border-gray-200/70 bg-white p-4 shadow-[0_18px_44px_-16px_rgba(80,40,120,0.22)]"
             style={{ animationDuration: '11s', animationDelay: '-4s' }}
           >
             <div className="flex items-center gap-3">
@@ -192,18 +194,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
           </div>
 
           {/* right: dark apps pill */}
-          <div
-            className="card-float absolute right-[10%] top-[56%] flex items-center gap-2.5 rounded-full bg-[#1A1A1E] py-2 pl-2 pr-4 text-white shadow-[0_14px_30px_-10px_rgba(0,0,0,0.4)]"
-            style={{ animationDuration: '12s', animationDelay: '-6s' }}
-          >
-            <span className="grid h-8 w-8 place-items-center rounded-full bg-white/10">
-              <Boxes className="h-4 w-4" />
-            </span>
-            <div className="leading-tight">
-              <p className="text-[13px] font-semibold">12 apps</p>
-              <p className="text-[10px] text-white/60">running</p>
-            </div>
-          </div>
+
         </div>
 
         {/* ---- Floating tech-logo chips (lg screens only) ---- */}
@@ -244,7 +235,6 @@ export function LoginPage({ onLogin }: LoginPageProps) {
           {/* =================== Login card =================== */}
           <div className="mt-9 w-full max-w-md rounded-3xl border border-gray-200/70 bg-white p-7 sm:p-8 text-left shadow-[0_24px_60px_-20px_rgba(80,40,120,0.22)]">
             <div className="mb-6 flex items-center gap-3">
-              <NexusMark className="h-9 w-9 shrink-0" />
               <div>
                 <p className="text-sm font-semibold leading-tight text-[#1A1A1E]">Sign in to Nexus Aura</p>
                 <p className="text-xs text-[#1A1A1E]/55">Database, apps, infrastructure &amp; users</p>

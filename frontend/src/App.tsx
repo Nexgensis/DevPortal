@@ -12,9 +12,12 @@ import { AuditLogs } from './components/AuditLogs';
 import { LoginPage } from './components/LoginPage';
 import { AuthCallback } from './components/AuthCallback';
 import { PostgresManager } from './components/PostgresManager';
+import { SecurityScanReport } from './components/SecurityScanReport';
+import { RunningApps } from './components/RunningApps';
 import { Badge } from './components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './components/ui/tabs';
-import { Plus, Activity, FolderKanban, Search, Server as ServerIcon, Zap, Clock, LogOut, Shield, Sun, Moon } from 'lucide-react';
+import { Plus, Activity, FolderKanban, Search, Server as ServerIcon, Zap, Clock, LogOut, Shield, Sun, Moon, Users as UsersIcon, FileText, ShieldCheck } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { Input } from './components/ui/input';
 import { App as AppType, Project, Server } from './types/app';
 import { Toaster } from './components/ui/sonner';
@@ -23,13 +26,23 @@ import { AccentButton } from './components/ui/accent-button';
 
 // Per-view editorial header copy — each folder tab gets its own big serif title
 // + muted subtitle at the top of the workspace (keyed by activeView).
-const VIEW_META: Record<'applications' | 'infrastructure' | 'users' | 'audit-logs' | 'database-dump', { title: string; subtitle: string }> = {
+const VIEW_META: Record<'applications' | 'config' | 'database-dump' | 'security-scan' | 'running-apps', { title: string; subtitle: string }> = {
   'database-dump': { title: 'Database Dump', subtitle: 'Dump and download PostgreSQL databases from containers' },
   applications: { title: 'Applications', subtitle: 'Deploy and manage your Docker Compose applications' },
-  infrastructure: { title: 'Infrastructure', subtitle: 'Manage server connections and project groupings' },
-  users: { title: 'Users', subtitle: 'Manage user accounts, roles, and access' },
-  'audit-logs': { title: 'Audit Logs', subtitle: 'Review system activity and security events' },
+  'running-apps': { title: 'Running Apps', subtitle: 'Live view of compose projects and their frontend URLs per server' },
+  'security-scan': { title: 'Security Scan Report', subtitle: 'Latest CI/CD security scan reports per repository and branch' },
+  config: { title: 'Configuration', subtitle: 'Servers, users, and system activity' },
 };
+
+// Config groups three admin sections behind one tab; each sub-tab keeps its own header copy.
+type ConfigTab = 'infrastructure' | 'users' | 'scan-sources' | 'audit-logs';
+const CONFIG_TABS: Record<ConfigTab, { title: string; subtitle: string; icon: LucideIcon }> = {
+  infrastructure: { title: 'Infrastructure', subtitle: 'Manage server connections and project groupings', icon: ServerIcon },
+  users: { title: 'Users', subtitle: 'Manage user accounts, roles, and access', icon: UsersIcon },
+  'scan-sources': { title: 'Scan Sources', subtitle: 'Register and refresh CI/CD security-scan report sources', icon: ShieldCheck },
+  'audit-logs': { title: 'Audit Logs', subtitle: 'Review system activity and security events', icon: FileText },
+};
+const CONFIG_TAB_ORDER: ConfigTab[] = ['infrastructure', 'users', 'scan-sources', 'audit-logs'];
 
 export default function App() {
   const { user, isLoading: authLoading, isAuthenticated, isAdmin, login, logout, setAuthToken } = useAuth();
@@ -39,7 +52,8 @@ export default function App() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingApp, setEditingApp] = useState<App | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeView, setActiveView] = useState<'applications' | 'infrastructure' | 'users' | 'audit-logs' | 'database-dump'>('database-dump');
+  const [activeView, setActiveView] = useState<'applications' | 'config' | 'database-dump' | 'security-scan' | 'running-apps'>('database-dump');
+  const [configTab, setConfigTab] = useState<ConfigTab>('infrastructure');
   const [serverDialogTrigger, setServerDialogTrigger] = useState(0);
   const [projectDialogTrigger, setProjectDialogTrigger] = useState(0);
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
@@ -115,16 +129,19 @@ export default function App() {
   };
 
   const handleNavigateToAdministration = () => {
-    setActiveView('infrastructure');
+    setConfigTab('infrastructure');
+    setActiveView('config');
   };
 
   const handleAddServerFromOverview = () => {
-    setActiveView('infrastructure');
+    setConfigTab('infrastructure');
+    setActiveView('config');
     setTimeout(() => setServerDialogTrigger(prev => prev + 1), 100);
   };
 
   const handleAddProjectFromOverview = () => {
-    setActiveView('infrastructure');
+    setConfigTab('infrastructure');
+    setActiveView('config');
     setTimeout(() => setProjectDialogTrigger(prev => prev + 1), 100);
   };
 
@@ -192,7 +209,7 @@ export default function App() {
         <FolderTabs active={activeView} onNavigate={setActiveView} isAdmin={isAdmin} />
         <main className="folder-paper relative z-10 -mt-px flex-1 min-h-0 rounded-tr-[28px] rounded-b-[28px] border border-[var(--border)] overflow-auto">
           <div className="p-8 max-w-[1600px] mx-auto">
-          {/* Per-view editorial header — big serif title + muted subtitle for the active tab */}
+          {/* Per-view editorial header — big serif title + muted subtitle for the active tab. */}
           <div className="mb-8">
             <h1 className="font-display text-4xl font-bold tracking-tight text-[var(--ink)]">
               {VIEW_META[activeView].title}
@@ -339,30 +356,61 @@ export default function App() {
             </div>
           )}
 
-          {activeView === 'infrastructure' && isAdmin && (
-            <Infrastructure
-              servers={servers}
-              projects={projects}
-              onAddServer={addServer}
-              onUpdateServer={updateServer}
-              onDeleteServer={removeServer}
-              onAddProject={addProject}
-              onUpdateProject={updateProject}
-              onDeleteProject={removeProject}
-              onPostgresBackup={handlePostgresBackup}
-            />
-          )}
+          {activeView === 'config' && isAdmin && (
+            <div className="w-full">
+              {/* Settings-style sub-navigation — flat underline tabs on a hairline rule. */}
+              <div className="mb-8 border-b border-[var(--border)]">
+                <nav className="-mb-px flex gap-1 overflow-x-auto">
+                  {CONFIG_TAB_ORDER.map((id) => {
+                    const { title, icon: Icon } = CONFIG_TABS[id];
+                    const isActive = configTab === id;
+                    return (
+                      <button
+                        key={id}
+                        onClick={() => setConfigTab(id)}
+                        className={`inline-flex items-center gap-2 whitespace-nowrap border-b-2 px-4 py-3 text-sm font-medium transition-colors focus:outline-none ${
+                          isActive
+                            ? 'border-[var(--accent-pink)] text-[var(--ink)]'
+                            : 'border-transparent text-[var(--ink-muted)] hover:text-[var(--ink)] hover:border-[var(--border)]'
+                        }`}
+                      >
+                        <Icon className="h-4 w-4 shrink-0" strokeWidth={2} />
+                        {title}
+                      </button>
+                    );
+                  })}
+                </nav>
+              </div>
 
-          {activeView === 'users' && isAdmin && (
-            <UserManagement />
-          )}
-
-          {activeView === 'audit-logs' && isAdmin && (
-            <AuditLogs />
+              {configTab === 'infrastructure' && (
+                <Infrastructure
+                  servers={servers}
+                  projects={projects}
+                  onAddServer={addServer}
+                  onUpdateServer={updateServer}
+                  onDeleteServer={removeServer}
+                  onAddProject={addProject}
+                  onUpdateProject={updateProject}
+                  onDeleteProject={removeProject}
+                  onPostgresBackup={handlePostgresBackup}
+                />
+              )}
+              {configTab === 'users' && <UserManagement />}
+              {configTab === 'scan-sources' && <SecurityScanReport manage />}
+              {configTab === 'audit-logs' && <AuditLogs />}
+            </div>
           )}
 
           {activeView === 'database-dump' && (
             <PostgresManager />
+          )}
+
+          {activeView === 'security-scan' && (
+            <SecurityScanReport />
+          )}
+
+          {activeView === 'running-apps' && (
+            <RunningApps />
           )}
           </div>
         </main>

@@ -45,7 +45,7 @@ func main() {
 	}
 
 	// Auto-migrate models
-	db.AutoMigrate(&models.User{}, &models.Server{}, &models.Project{}, &models.App{}, &models.AuditLog{}, &models.PostgresCredential{})
+	db.AutoMigrate(&models.User{}, &models.Server{}, &models.Project{}, &models.App{}, &models.AuditLog{}, &models.PostgresCredential{}, &models.ScanReport{}, &models.PinnedProject{})
 
 	// Run migrations
 	if err := migrations.CreateDefaultUsers(db); err != nil {
@@ -62,6 +62,12 @@ func main() {
 
 	// Start background timer service for auto-stopping apps
 	services.StartTimerService(db)
+
+	// Note: the Nexus scan-report poller is intentionally NOT started here.
+	// Reports refresh only on:
+	//   1. source create/update (one-shot fetch inside the controller)
+	//   2. the manual Refresh button in the admin Scan Sources UI
+	// To re-enable periodic polling, restore the StartScanReportService call.
 
 	// Set Gin to production mode in production
 	if os.Getenv("GIN_MODE") == "release" {

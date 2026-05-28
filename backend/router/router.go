@@ -56,6 +56,17 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
     // (passwords are never returned); mutations are admin-only (registered below).
     auth.GET("/servers/:id/postgres/credentials", controllers.ListPostgresCredentials(db))
 
+    // Security scan reports — read for any authenticated user; sources are
+    // managed (added/removed/refreshed) by admins (registered below).
+    auth.GET("/scan-reports", controllers.ListScanReports(db))
+    auth.GET("/scan-reports/:id", controllers.GetScanReport(db))
+    // Parsed/structured view: turns the raw stored JSON into a severity matrix +
+    // tab-ready DTO (Trivy / ZAP / Sonar). Auth-only (read access matches /:id).
+    auth.GET("/scan-reports/:id/parsed", controllers.GetParsedScanReport(db))
+
+    // Running apps — live view of compose projects + their URLs per server.
+    auth.GET("/servers/:id/running-apps", controllers.GetRunningApps(db))
+
     // Admin routes - only admins can modify servers, projects, apps
     admin := auth.Group("/")
     admin.Use(middleware.Admin())
@@ -68,12 +79,23 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
     admin.PUT("/servers/:id/postgres/credentials", controllers.UpsertPostgresCredential(db))
     admin.DELETE("/servers/:id/postgres/credentials/:container_name", controllers.DeletePostgresCredential(db))
 
+    // Security scan report sources (admin only)
+    admin.POST("/scan-reports", controllers.CreateScanReport(db))
+    admin.PUT("/scan-reports/:id", controllers.UpdateScanReport(db))
+    admin.POST("/scan-reports/:id/refresh", controllers.RefreshScanReportHandler(db))
+    admin.DELETE("/scan-reports/:id", controllers.DeleteScanReport(db))
+
     admin.POST("/projects", controllers.CreateProject(db))
     admin.PUT("/projects/:id", controllers.UpdateProject(db))
     admin.DELETE("/projects/:id", controllers.DeleteProject(db))
 
     admin.POST("/apps", controllers.CreateApp(db))
     admin.DELETE("/apps/:id", controllers.DeleteApp(db))
+
+    // Pin/unpin a Running-Apps root-group on a server. Pinning is admin-only but
+    // the effect (group sorts to the top) is visible to every viewer.
+    admin.PUT("/servers/:id/running-apps/:group/pin", controllers.PinProject(db))
+    admin.DELETE("/servers/:id/running-apps/:group/pin", controllers.UnpinProject(db))
 
     // User management (admin only)
     admin.GET("/users", controllers.ListUsers(db))

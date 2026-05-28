@@ -29,8 +29,8 @@
   --aura-3: #D6F5E5;
 
   /* Vibrant accents */
-  --accent-pink: #2563EB;           /* PRIMARY = electric blue (token name kept) */
-  --accent-pink-soft: #DBEAFE;
+  --accent-pink: #5B4DFF;           /* PRIMARY = WealthSync violet (token name kept) */
+  --accent-pink-soft: #EEEBFF;
   --accent-peach: #FF5A5F;          /* hot coral */
   --accent-peach-soft: #FFE4E5;
   --accent-green: #10B981;          /* emerald — online/active status */
@@ -46,6 +46,8 @@
   --tab-infra: #FBBC05;             /* Google amber */
   --tab-users: #A04EF6;             /* deep purple */
   --tab-audit: #34A853;             /* Google green */
+  --tab-scan: #0F9D9D;              /* teal — security scan */
+  --tab-running: #FF6B35;           /* orange-coral — running apps */
 
   /* Legacy aliases (kept so untouched components don't break) */
   --accent-lime: var(--accent-pink);
@@ -117,8 +119,8 @@
   --aura-2: #1F2A45;
   --aura-3: #1E3330;
 
-  --accent-pink: #22D3EE;           /* PRIMARY = neon cyan */
-  --accent-pink-soft: color-mix(in srgb, #22D3EE 22%, transparent);
+  --accent-pink: #8B7CFF;           /* PRIMARY = lighter violet for dark canvas */
+  --accent-pink-soft: color-mix(in srgb, #8B7CFF 22%, transparent);
   --accent-peach: #FF2D78;          /* cyberpunk pink */
   --accent-peach-soft: color-mix(in srgb, #FF2D78 22%, transparent);
   --accent-green: #A3FF12;          /* fluorescent lime — online/active */
@@ -131,6 +133,8 @@
   --tab-infra: #FBBC05;             /* Google amber */
   --tab-users: #A04EF6;             /* deep purple */
   --tab-audit: #34A853;             /* Google green */
+  --tab-scan: #0F9D9D;              /* teal — security scan */
+  --tab-running: #FF6B35;           /* orange-coral — running apps */
 
   --sidebar-foreground: var(--ink);
 }
@@ -195,10 +199,13 @@
     -webkit-font-smoothing: antialiased;
   }
 
-  /* Editorial serif for main + section headings (Claude.ai aesthetic). */
+  /* WealthSync-style bold sans headings — tight tracking, geometric Inter.
+     Components can still opt back into editorial serif via inline style or a
+     local class if they want the Claude.ai vibe for a hero block. */
   h1, h2, .font-display {
-    font-family: var(--font-serif);
-    letter-spacing: -0.01em;
+    font-family: var(--font-sans);
+    letter-spacing: -0.025em;
+    font-weight: 700;
   }
 }
 
@@ -391,6 +398,20 @@ html {
   }
   @keyframes shimmer {
     to { transform: translateX(100%); }
+  }
+
+  /* Indeterminate progress bar used by the pg_dump download UI when the
+     response is chunked (no Content-Length). A short indigo segment sweeps
+     left-to-right on an indigo-tinted track. */
+  .pg-dump-indeterminate {
+    background: linear-gradient(90deg, transparent 0%, #5b4dff 35%, #4133ff 65%, transparent 100%);
+    background-size: 40% 100%;
+    background-repeat: no-repeat;
+    animation: pg-dump-sweep 1.2s linear infinite;
+  }
+  @keyframes pg-dump-sweep {
+    0%   { background-position: -40% 0; }
+    100% { background-position: 140% 0; }
   }
 }
 

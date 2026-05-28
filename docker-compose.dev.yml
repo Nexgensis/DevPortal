@@ -32,6 +32,11 @@ services:
       ENCRYPTION_KEY: "12345678901234567890123456789012"
       GIN_MODE: debug
       SSO_ENABLED: "false"
+      # Sonatype Nexus connection for the Security Scan Report poller (leave
+      # NEXUS_URL empty to keep the poller idle in local dev).
+      NEXUS_URL: "${NEXUS_URL:-https://nexus.nexgensis.com}"
+      NEXUS_USER: "${NEXUS_USER:-admin}"
+      NEXUS_PASS: "${NEXUS_PASS:-Welcome@123}"
       # Pass through any local override via .env.dev if it exists.
     ports:
       - "8080:8080"

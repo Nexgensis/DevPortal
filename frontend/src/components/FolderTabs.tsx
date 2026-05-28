@@ -1,7 +1,8 @@
-import { Server, Users, FileText, Database, FolderKanban } from 'lucide-react';
+import { Settings, Database, ShieldCheck, Rocket } from 'lucide-react';
+// TODO(applications): re-import `FolderKanban` when the Applications tab is re-enabled.
 import type { LucideIcon } from 'lucide-react';
 
-export type FolderView = 'applications' | 'database-dump' | 'infrastructure' | 'users' | 'audit-logs';
+export type FolderView = 'applications' | 'database-dump' | 'security-scan' | 'running-apps' | 'config';
 
 interface FolderDef {
   id: FolderView;
@@ -15,10 +16,11 @@ interface FolderDef {
 // Order: Database Dump first. Colors come from themed CSS vars (Google brand palette).
 const FOLDERS: FolderDef[] = [
   { id: 'database-dump', label: 'Database Dump', icon: Database, color: 'var(--tab-db)' },
-  { id: 'applications', label: 'Applications', icon: FolderKanban, color: 'var(--tab-apps)' },
-  { id: 'infrastructure', label: 'Infrastructure', icon: Server, color: 'var(--tab-infra)', adminOnly: true },
-  { id: 'users', label: 'Users', icon: Users, color: 'var(--tab-users)', adminOnly: true },
-  { id: 'audit-logs', label: 'Audit Logs', icon: FileText, color: 'var(--tab-audit)', adminOnly: true },
+  // TODO(applications): re-enable when the Applications section is rebuilt.
+  // { id: 'applications', label: 'Applications', icon: FolderKanban, color: 'var(--tab-apps)' },
+  { id: 'running-apps', label: 'Running Apps', icon: Rocket, color: 'var(--tab-running)' },
+  { id: 'security-scan', label: 'Security Scan', icon: ShieldCheck, color: 'var(--tab-scan)' },
+  { id: 'config', label: 'Config', icon: Settings, color: 'var(--tab-users)', adminOnly: true },
 ];
 
 interface FolderTabsProps {
