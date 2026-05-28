@@ -547,41 +547,48 @@ export const PostgresManager = () => {
                                 ? Math.min(100, Math.round((dumpProgress.received / dumpProgress.total) * 100))
                                 : null;
                             return (
-                              // Outer chassis — soft frame around the colored canvas. Flat, no animation.
+                              // Outer chassis — soft frame around the gradient indigo canvas, with hover lift.
                               <div
                                 key={db.name}
-                                className="rounded-[22px] border border-[var(--border)] bg-[var(--card)] p-2 flex flex-col"
+                                className="rounded-[22px] border border-[var(--border)] bg-[var(--card)] p-2 flex flex-col transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_14px_32px_rgba(65,51,255,0.10)]"
                               >
-                                {/* Display canvas — light pastel violet block, dark text. */}
+                                {/* Display canvas — gradient indigo with subtle top sheen for depth. */}
                                 <div
-                                  className="rounded-[14px] px-3 py-3 flex flex-col"
-                                  style={{ background: 'var(--accent-pink-soft)' }}
+                                  className="relative rounded-[16px] px-4 py-4 flex flex-col overflow-hidden"
+                                  style={{ background: 'linear-gradient(160deg, #5b4dff 0%, #4133ff 55%, #2e22d4 100%)' }}
                                 >
+                                  {/* Glossy top sheen */}
+                                  <div
+                                    aria-hidden
+                                    className="absolute inset-x-0 top-0 h-[40%] pointer-events-none"
+                                    style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.12) 0%, transparent 100%)' }}
+                                  />
+
                                   {/* Top row: Active status pill + Database icon chip */}
-                                  <div className="flex items-center justify-between mb-2">
-                                    <span className="inline-flex items-center gap-1.5 rounded-full bg-white border border-black/5 px-2.5 py-0.5 text-[11px] font-semibold text-[var(--ink)]">
+                                  <div className="relative flex items-center justify-between mb-3">
+                                    <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold text-[#1A1A1E] shadow-[0_2px_6px_rgba(0,0,0,0.08)]">
                                       <span className="h-1.5 w-1.5 rounded-full bg-[var(--accent-green)]" />
                                       Active
                                     </span>
-                                    <span className="grid h-6 w-6 place-items-center rounded-full bg-white text-[var(--accent-pink)]">
+                                    <span className="grid h-7 w-7 place-items-center rounded-full bg-white/20 text-white">
                                       <Database className="h-3.5 w-3.5" />
                                     </span>
                                   </div>
 
                                   {/* Owner eyebrow + DB name title */}
-                                  <p className="text-[10px] font-medium text-[var(--ink)]/55 mb-0.5 truncate uppercase tracking-wider">
+                                  <p className="relative text-[11px] font-medium text-white/65 mb-0.5 truncate uppercase tracking-wider">
                                     {db.owner}
                                   </p>
-                                  <h3 className="text-[16px] font-bold leading-[1.2] tracking-tight text-[var(--ink)] line-clamp-1 break-all mb-2">
+                                  <h3 className="relative text-[22px] font-bold leading-[1.15] tracking-tight text-white line-clamp-2 break-all mb-3">
                                     {db.name}
                                   </h3>
 
-                                  {/* Encoding + engine pills (white chips with hairline) */}
-                                  <div className="flex flex-wrap gap-1.5">
-                                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-white border border-black/5 text-[var(--ink)]/75">
+                                  {/* Encoding + engine pills (translucent on indigo) */}
+                                  <div className="relative flex flex-wrap gap-1.5">
+                                    <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-white/15 border border-white/25 text-white">
                                       {db.encoding || 'UTF8'}
                                     </span>
-                                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-white border border-black/5 text-[var(--ink)]/75">
+                                    <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-white/15 border border-white/25 text-white">
                                       PostgreSQL
                                     </span>
                                   </div>
@@ -626,7 +633,7 @@ export const PostgresManager = () => {
                                         type="button"
                                         onClick={() => handleDump(db.name, db.size)}
                                         disabled={loading}
-                                        className="inline-flex items-center gap-2 rounded-full bg-[var(--accent-pink)] text-white px-5 py-3 text-sm font-bold hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed"
+                                        className="inline-flex items-center gap-2 rounded-full bg-[var(--ink)] text-[var(--card)] px-5 py-3 text-sm font-bold hover:opacity-90 transition-opacity disabled:opacity-60 disabled:cursor-not-allowed shadow-[0_6px_16px_rgba(0,0,0,0.18)]"
                                       >
                                         <Download className="h-4 w-4" />
                                         Download
