@@ -45,7 +45,7 @@ func main() {
 	}
 
 	// Auto-migrate models
-	db.AutoMigrate(&models.User{}, &models.Server{}, &models.Project{}, &models.App{}, &models.AuditLog{}, &models.PostgresCredential{}, &models.ScanReport{}, &models.PinnedProject{})
+	db.AutoMigrate(&models.User{}, &models.Server{}, &models.Project{}, &models.App{}, &models.AuditLog{}, &models.PostgresCredential{}, &models.ScanReport{}, &models.PinnedProject{}, &models.WikiPost{})
 
 	// Run migrations
 	if err := migrations.CreateDefaultUsers(db); err != nil {
