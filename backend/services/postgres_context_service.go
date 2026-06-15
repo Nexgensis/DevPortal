@@ -2,11 +2,15 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
+	"net/http"
 	"net/url"
 	"sort"
 	"strings"
+	"time"
 
 	"backend/models"
 
@@ -118,6 +122,9 @@ func extractDatabases(env []string) (dbs []string, src string) {
 			continue
 		}
 		upper := strings.ToUpper(k)
+
+		// 1) Explicit DB-name keys (exact match) — the value IS the DB name.
+		matched := false
 		for _, key := range dbNameEnvKeys {
 			if upper == key {
 				if !seen[v] {
@@ -125,18 +132,31 @@ func extractDatabases(env []string) (dbs []string, src string) {
 					seen[v] = true
 				}
 				srcKeys = append(srcKeys, k)
+				matched = true
 				break
 			}
 		}
+		if matched {
+			continue
+		}
+
+		// 2) Explicit URL keys OR any value that looks like a postgres
+		// connection URL. The value-based check is key-agnostic, so custom
+		// names (SQLALCHEMY_DATABASE_URI, <APP>_DATABASE_URL, …) still resolve.
+		isURLKey := false
 		for _, key := range dbURLEnvKeys {
 			if upper == key {
-				name := parseDBURL(v)
-				if name != "" && !seen[name] {
-					dbs = append(dbs, name)
-					seen[name] = true
-					srcKeys = append(srcKeys, k)
-				}
+				isURLKey = true
 				break
+			}
+		}
+		low := strings.ToLower(v)
+		looksLikeURL := strings.HasPrefix(low, "postgres://") || strings.HasPrefix(low, "postgresql://")
+		if isURLKey || looksLikeURL {
+			if name := parseDBURL(v); name != "" && !seen[name] {
+				dbs = append(dbs, name)
+				seen[name] = true
+				srcKeys = append(srcKeys, k)
 			}
 		}
 	}
@@ -206,6 +226,27 @@ func (s *PostgresContextService) GetContainerContext(ctx context.Context, server
 
 	activeSet := map[string]bool{}
 
+	// Active-DB detection sources, in priority order (a lower source is only used
+	// when the higher ones yield nothing, so a stale value never wins):
+	//   1. Infisical (PRIMARY) — the fleet stores the real DATABASE_URL in
+	//      Infisical, so the app containers expose only INFISICAL_* bootstrap
+	//      vars. We read those, call the Infisical API, and parse the DB from the
+	//      secret. Resolved below, after we've scanned the consumers.
+	//   2. The postgres container's own POSTGRES_DB / DATABASE_URL (compose
+	//      plaintext) — reliable when set fresh, but can be a stale init value.
+	//   3. The app containers' own env (legacy / non-Infisical projects).
+	composeSet := map[string]bool{}
+	if pg.Config != nil {
+		if selfDBs, _ := extractDatabases(pg.Config.Env); len(selfDBs) > 0 {
+			for _, d := range selfDBs {
+				composeSet[d] = true
+			}
+		}
+	}
+
+	envSet := map[string]bool{}
+	var infisicalCfg *infisicalConfig // captured from the first app container that has it
+
 	for _, c := range listed {
 		if c.ID == containerID {
 			continue
@@ -252,10 +293,57 @@ func (s *PostgresContextService) GetContainerContext(ctx context.Context, server
 			cons.Databases = dbs
 			cons.EnvSource = src
 			for _, d := range dbs {
-				activeSet[d] = true
+				envSet[d] = true
+			}
+			// Capture the Infisical bootstrap config (first match wins) so we can
+			// resolve the real connection string from the secret store below.
+			if infisicalCfg == nil {
+				if cfg := parseInfisicalConfig(details.Config.Env); cfg != nil {
+					cfg.consumerIdx = len(out.Consumers) // index this cons will land at
+					infisicalCfg = cfg
+				}
 			}
 		}
 		out.Consumers = append(out.Consumers, cons)
+	}
+
+	// PRIMARY source: resolve the active DB from Infisical when the app containers
+	// are wired to it. Best-effort — any failure (unreachable, auth, parse) just
+	// falls through to the compose/env sources below.
+	var infisicalDBs []string
+	if infisicalCfg != nil {
+		secrets, ferr := fetchInfisicalSecrets(ctx, infisicalCfg)
+		if ferr == nil {
+			infisicalDBs, _ = extractDatabases(secrets)
+			log.Printf("[pg-context] project=%q infisical: fetched %d secrets, resolved DBs=%v (env=%q)",
+				project, len(secrets), infisicalDBs, infisicalCfg.env)
+		} else {
+			log.Printf("[pg-context] project=%q infisical fetch FAILED: %v (env=%q api=%q projectId_present=%t)",
+				project, ferr, infisicalCfg.env, infisicalCfg.apiURL, infisicalCfg.projectID != "")
+		}
+	} else {
+		log.Printf("[pg-context] project=%q: no INFISICAL_* bootstrap vars found on any app container", project)
+	}
+
+	switch {
+	case len(infisicalDBs) > 0:
+		for _, d := range infisicalDBs {
+			activeSet[d] = true
+		}
+		// Attribute the resolved DB to the app container that owns the Infisical
+		// config, so its "Used by" row shows it (its own Docker env had nothing).
+		if infisicalCfg.consumerIdx >= 0 && infisicalCfg.consumerIdx < len(out.Consumers) {
+			out.Consumers[infisicalCfg.consumerIdx].Databases = infisicalDBs
+			out.Consumers[infisicalCfg.consumerIdx].EnvSource = "infisical"
+		}
+	case len(composeSet) > 0:
+		for d := range composeSet {
+			activeSet[d] = true
+		}
+	default:
+		for d := range envSet {
+			activeSet[d] = true
+		}
 	}
 
 	// Backend first (most likely to expose DB info), then frontend, then other.
@@ -271,5 +359,110 @@ func (s *PostgresContextService) GetContainerContext(ctx context.Context, server
 	}
 	sort.Strings(out.ActiveDatabases)
 
+	// One line that tells us, per request, exactly which source won and what got
+	// marked Live — the quickest way to debug a container that won't light up.
+	log.Printf("[pg-context] project=%q resolved ActiveDatabases=%v (compose=%d env=%d infisical=%d consumers=%d)",
+		project, out.ActiveDatabases, len(composeSet), len(envSet), len(infisicalDBs), len(out.Consumers))
+
+	return out, nil
+}
+
+// infisicalConfig is the bootstrap info an app container carries so it can pull
+// its secrets from Infisical at runtime. Compose interpolates these from the
+// host .env at deploy time, so they ARE present in `docker inspect`'s env (only
+// the resolved secrets themselves live in Infisical, not these).
+type infisicalConfig struct {
+	apiURL      string
+	token       string
+	projectID   string
+	env         string
+	consumerIdx int // index of the consumer we read this from (for attribution)
+}
+
+// parseInfisicalConfig pulls the INFISICAL_* bootstrap vars out of a container's
+// env slice. Returns nil unless at least a token + project id are present (the
+// minimum needed to call the API).
+func parseInfisicalConfig(env []string) *infisicalConfig {
+	m := map[string]string{}
+	for _, e := range env {
+		if eq := strings.IndexByte(e, '='); eq > 0 {
+			m[e[:eq]] = strings.TrimSpace(e[eq+1:])
+		}
+	}
+	token, project := m["INFISICAL_TOKEN"], m["INFISICAL_PROJECT_ID"]
+	if token == "" || project == "" {
+		return nil
+	}
+	return &infisicalConfig{
+		apiURL:      m["INFISICAL_API_URL"],
+		token:       token,
+		projectID:   project,
+		env:         m["INFISICAL_ENV"],
+		consumerIdx: -1,
+	}
+}
+
+// fetchInfisicalSecrets calls the Infisical API and returns its secrets as a
+// `KEY=VALUE` slice — the same shape extractDatabases() already consumes, so the
+// DB name is parsed from DATABASE_URL/POSTGRES_DB exactly like a container env.
+// Best-effort with a short timeout: the frontend waits on the context call, so
+// an unreachable Infisical must fail fast and fall through to other sources.
+func fetchInfisicalSecrets(ctx context.Context, cfg *infisicalConfig) ([]string, error) {
+	base := strings.TrimRight(cfg.apiURL, "/")
+	if base == "" {
+		base = "https://app.infisical.com"
+	}
+	environment := cfg.env
+	if environment == "" {
+		environment = "prod"
+	}
+	// recursive=true sweeps subfolders; include_imports=true returns secrets that
+	// the environment imports from other folders/environments (Infisical returns
+	// those in a separate `imports[]` array, not the top-level `secrets[]`). The
+	// `infisical run` the apps use injects all of these, so we must too — fetching
+	// only root-level `secrets` is exactly how we ended up with 0.
+	endpoint := fmt.Sprintf("%s/api/v3/secrets/raw?workspaceId=%s&environment=%s&secretPath=%s&recursive=true&include_imports=true",
+		base, url.QueryEscape(cfg.projectID), url.QueryEscape(environment), url.QueryEscape("/"))
+
+	reqCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", "Bearer "+cfg.token)
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("infisical: unexpected status %d", resp.StatusCode)
+	}
+
+	type kv struct {
+		SecretKey   string `json:"secretKey"`
+		SecretValue string `json:"secretValue"`
+	}
+	var body struct {
+		Secrets []kv `json:"secrets"`
+		Imports []struct {
+			Secrets []kv `json:"secrets"`
+		} `json:"imports"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		return nil, err
+	}
+	out := make([]string, 0, len(body.Secrets))
+	for _, s := range body.Secrets {
+		out = append(out, s.SecretKey+"="+s.SecretValue)
+	}
+	for _, imp := range body.Imports {
+		for _, s := range imp.Secrets {
+			out = append(out, s.SecretKey+"="+s.SecretValue)
+		}
+	}
 	return out, nil
 }

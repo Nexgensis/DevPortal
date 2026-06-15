@@ -104,19 +104,19 @@ const ContainerRow = ({ c, projectName }: { c: ContainerView; projectName: strin
       }
     : {
         chassis: '#ffffff',
-        canvas: 'radial-gradient(circle at 20% 20%, #f4f8ee 0%, #e8efe0 60%, #e1ebd5 100%)',
-        title: '#35531b',
-        iconChipBg: '#e2e6da',
-        iconChipGlyph: '#485c2c',
-        label: '#8da471',
-        bigText: '#35531b',
-        circleVector: 'rgba(186, 211, 153, 0.35)',
-        capsuleVector: '#9adc33',
-        actionBg: '#4f6327',
+        canvas: 'radial-gradient(circle at 20% 20%, #f3f1ff 0%, #ebe7ff 60%, #e2dcff 100%)',
+        title: '#2e2566',
+        iconChipBg: '#e6e2fa',
+        iconChipGlyph: '#5b4dff',
+        label: '#8b86b8',
+        bigText: '#2e2566',
+        circleVector: 'rgba(150, 130, 255, 0.28)',
+        capsuleVector: '#8b7cff',
+        actionBg: '#4f43c9',
         actionGlyph: '#ffffff',
         pillBg: '#ffffff',
-        pillText: '#35531b',
-        chassisShadow: '0 14px 36px rgba(120, 130, 100, 0.08)',
+        pillText: '#2e2566',
+        chassisShadow: '0 14px 36px rgba(91, 77, 255, 0.08)',
       };
 
   const primary = c.urls && c.urls.length > 0 ? c.urls[0] : null;
@@ -540,24 +540,29 @@ export const RunningApps = () => {
 
       {/* Grid of root-group folder cards (with stats sidebar on the left) */}
       {!selectedGroup && (() => {
-        // Totals shown in the left stats panel.
+        // Totals + breakdowns shown in the left stats panel.
         const totalApps = rootGroups.length;
         const totalCompose = rootGroups.reduce((s, g) => s + g.projects.length, 0);
         const totalContainers = rootGroups.reduce((s, g) => s + g.containerCount, 0);
+        const totalFrontends = rootGroups.reduce((s, g) => s + g.frontendCount, 0); // containers with a published port
+        const totalServices = totalContainers - totalFrontends;
+        const pinnedCount = rootGroups.filter((g) => g.pinned).length;
+        const exposedApps = rootGroups.filter((g) => g.frontendCount > 0).length; // groups with ≥1 frontend
+        const avgPerApp = totalApps ? (totalContainers / totalApps).toFixed(1) : '0';
         return (
         <div className="flex flex-col lg:flex-row gap-8">
           {/* ── Stats sidebar — dark premium in dark mode, colorful tinted in light mode ── */}
           <aside className="w-full lg:w-60 shrink-0 grid grid-cols-3 lg:grid-cols-1 gap-5">
             {(isDark
               ? [
-                  { label: 'Applications',  value: totalApps,         Icon: undefined,     accent: '#ffffff', tint: '',                          bg: '#222222',                                              border: '#111111' },
-                  { label: 'Containers',    value: totalContainers,   Icon: undefined,     accent: '#ffffff', tint: '',                          bg: '#222222',                                              border: '#111111' },
-                  { label: 'Compose Files', value: totalCompose,      Icon: undefined,     accent: '#ffffff', tint: '',                          bg: '#222222',                                              border: '#111111' },
+                  { label: 'Applications',  value: totalApps,         Icon: undefined,     accent: '#ffffff', tint: '',                          bg: '#222222',                                              border: '#111111', sub: `${pinnedCount} pinned · ${exposedApps} exposed`,        barFrac: totalApps ? exposedApps / totalApps : 0 },
+                  { label: 'Containers',    value: totalContainers,   Icon: undefined,     accent: '#ffffff', tint: '',                          bg: '#222222',                                              border: '#111111', sub: `${totalFrontends} frontends · ${totalServices} services`, barFrac: totalContainers ? totalFrontends / totalContainers : 0 },
+                  { label: 'Compose Files', value: totalCompose,      Icon: undefined,     accent: '#ffffff', tint: '',                          bg: '#222222',                                              border: '#111111', sub: `${avgPerApp} containers / app avg`,                      barFrac: null as number | null },
                 ]
               : [
-                  { label: 'Applications',  value: totalApps,         Icon: Layers,        accent: '#007acc', tint: 'rgba(0,122,204,0.10)',      bg: 'linear-gradient(160deg, #f0f9ff 0%, #d9eeff 100%)',    border: '#9fd3ff' },
-                  { label: 'Containers',    value: totalContainers,   Icon: ContainerIcon, accent: '#0a7d3e', tint: 'rgba(10,125,62,0.10)',      bg: 'linear-gradient(160deg, #ecfbf2 0%, #cdf3dd 100%)',    border: '#9fdfba' },
-                  { label: 'Compose Files', value: totalCompose,      Icon: FileCode2,     accent: '#7b3fbf', tint: 'rgba(123,63,191,0.10)',     bg: 'linear-gradient(160deg, #f7f1ff 0%, #e2d2f8 100%)',    border: '#c3a7e8' },
+                  { label: 'Applications',  value: totalApps,         Icon: Layers,        accent: '#4f43c9', tint: 'rgba(91,77,255,0.10)',      bg: 'linear-gradient(160deg, #f4f2ff 0%, #e1dcff 100%)',    border: '#c6bff5', sub: `${pinnedCount} pinned · ${exposedApps} exposed`,        barFrac: totalApps ? exposedApps / totalApps : 0 },
+                  { label: 'Containers',    value: totalContainers,   Icon: ContainerIcon, accent: '#0a7d3e', tint: 'rgba(10,125,62,0.10)',      bg: 'linear-gradient(160deg, #ecfbf2 0%, #cdf3dd 100%)',    border: '#9fdfba', sub: `${totalFrontends} frontends · ${totalServices} services`, barFrac: totalContainers ? totalFrontends / totalContainers : 0 },
+                  { label: 'Compose Files', value: totalCompose,      Icon: FileCode2,     accent: '#7b3fbf', tint: 'rgba(123,63,191,0.10)',     bg: 'linear-gradient(160deg, #f7f1ff 0%, #e2d2f8 100%)',    border: '#c3a7e8', sub: `${avgPerApp} containers / app avg`,                      barFrac: null as number | null },
                 ]
             ).map((stat) => (
               <div
@@ -622,6 +627,36 @@ export const RunningApps = () => {
                 >
                   {stat.label}
                 </div>
+
+                {/* Breakdown detail line */}
+                <div
+                  className="relative"
+                  style={{
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    color: isDark ? '#7e848a' : 'rgba(31,41,55,0.62)',
+                    marginTop: '7px',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                  }}
+                  title={stat.sub}
+                >
+                  {stat.sub}
+                </div>
+
+                {/* Proportion bar (e.g. frontends share of containers) */}
+                {stat.barFrac != null && (
+                  <div
+                    className="relative mt-2.5 h-1.5 rounded-full overflow-hidden"
+                    style={{ background: isDark ? 'rgba(255,255,255,0.10)' : 'rgba(15,23,42,0.07)' }}
+                  >
+                    <div
+                      className="h-full rounded-full"
+                      style={{ width: `${Math.max(4, Math.round(stat.barFrac * 100))}%`, background: stat.accent }}
+                    />
+                  </div>
+                )}
               </div>
             ))}
           </aside>
@@ -640,266 +675,81 @@ export const RunningApps = () => {
               </div>
             </GlassCard>
           ) : (
-            <>
-              {/* Single shared clip-path definition used by every card's folder body */}
-              <svg className="absolute w-0 h-0" aria-hidden>
-                <defs>
-                  <clipPath id="folder-clip-square-optimized" clipPathUnits="objectBoundingBox">
-                    <path d="M 0,0 L 0.42,0 A 0.04,0.05 0 0,1 0.45,0.02 L 0.52,0.12 A 0.04,0.05 0 0,0 0.55,0.14 L 1,0.14 L 1,1 L 0,1 Z" />
-                  </clipPath>
-                </defs>
-              </svg>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
-                {rootGroups.map((g) => {
-                  // Per-theme palette. Dark = premium-glossy (red/blue gradient
-                  // + dark body + glossy sheen). Light = the previous flat
-                  // orange/blue with cream body.
-                  const theme = isDark
-                    ? g.pinned
-                      ? {
-                          outer: 'linear-gradient(180deg, #ef4444 0%, #b91c1c 100%)',
-                          border: '#111111',
-                          body: '#222222',
-                          title: '#ffffff',
-                          subtitle: '#9aa0a6',
-                          number: '#ffffff',
-                          label: '#9aa0a6',
-                          radius: '36px',
-                          padding: '9.2cqw',
-                          bodyHeight: '66%',
-                          titleSize: 'clamp(14px, 8.75cqw, 24px)',
-                          titleWeight: 600 as const,
-                          numberSize: 'clamp(22px, 14.17cqw, 38px)',
-                          labelSize: 'clamp(10px, 5.42cqw, 15px)',
-                          gloss: true,
-                          baseShadow: '0 12px 30px rgba(0,0,0,0.12)',
-                          hoverShadow: '0 20px 40px rgba(0,0,0,0.18)',
-                          pinIcon: '#b91c1c',
-                          pinChipBgUnpinned: 'rgba(255,255,255,0.2)',
-                          pinChipBorderUnpinned: 'rgba(255,255,255,0.45)',
-                        }
-                      : {
-                          outer: 'linear-gradient(180deg, #3b82f6 0%, #1d4ed8 100%)',
-                          border: '#111111',
-                          body: '#222222',
-                          title: '#ffffff',
-                          subtitle: '#9aa0a6',
-                          number: '#ffffff',
-                          label: '#9aa0a6',
-                          radius: '36px',
-                          padding: '9.2cqw',
-                          bodyHeight: '66%',
-                          titleSize: 'clamp(14px, 8.75cqw, 24px)',
-                          titleWeight: 600 as const,
-                          numberSize: 'clamp(22px, 14.17cqw, 38px)',
-                          labelSize: 'clamp(10px, 5.42cqw, 15px)',
-                          gloss: true,
-                          baseShadow: '0 12px 30px rgba(0,0,0,0.12)',
-                          hoverShadow: '0 20px 40px rgba(0,0,0,0.18)',
-                          pinIcon: '#1d4ed8',
-                          pinChipBgUnpinned: 'rgba(255,255,255,0.2)',
-                          pinChipBorderUnpinned: 'rgba(255,255,255,0.45)',
-                        }
-                    : g.pinned
-                      ? {
-                          outer: '#e85d2f',
-                          border: '#ffc9b3',
-                          body: '#fdf0e8',
-                          title: '#3a1a0c',
-                          subtitle: '#8a5a4a',
-                          number: '#2a0e04',
-                          label: '#8a5a4a',
-                          radius: '32px',
-                          padding: '8.3cqw',
-                          bodyHeight: '70%',
-                          titleSize: 'clamp(14px, 9.17cqw, 26px)',
-                          titleWeight: 700 as const,
-                          numberSize: 'clamp(22px, 15.83cqw, 42px)',
-                          labelSize: 'clamp(11px, 5.83cqw, 16px)',
-                          gloss: false,
-                          baseShadow: '0 4px 12px rgba(232,93,47,0.06)',
-                          hoverShadow: '0 12px 24px rgba(232,93,47,0.18)',
-                          pinIcon: '#e85d2f',
-                          pinChipBgUnpinned: 'rgba(255,255,255,0.18)',
-                          pinChipBorderUnpinned: 'rgba(255,255,255,0.35)',
-                        }
-                      : {
-                          outer: '#1aa3ff',
-                          border: '#b3e0ff',
-                          body: '#f0f7fc',
-                          title: '#092c47',
-                          subtitle: '#52728c',
-                          number: '#051624',
-                          label: '#52728c',
-                          radius: '32px',
-                          padding: '8.3cqw',
-                          bodyHeight: '70%',
-                          titleSize: 'clamp(14px, 9.17cqw, 26px)',
-                          titleWeight: 700 as const,
-                          numberSize: 'clamp(22px, 15.83cqw, 42px)',
-                          labelSize: 'clamp(11px, 5.83cqw, 16px)',
-                          gloss: false,
-                          baseShadow: '0 4px 12px rgba(0, 153, 255, 0.02)',
-                          hoverShadow: '0 12px 24px rgba(0,153,255,0.10)',
-                          pinIcon: '#1aa3ff',
-                          pinChipBgUnpinned: 'rgba(255,255,255,0.18)',
-                          pinChipBorderUnpinned: 'rgba(255,255,255,0.35)',
-                        };
-                  return (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-5">
+              {rootGroups.map((g) => {
+                // Same white-chassis + gradient-canvas card as the Database Dump
+                // page, so Running Apps reads as one product. Indigo for normal
+                // projects, on-palette coral for pinned.
+                const accent = g.pinned
+                  ? 'linear-gradient(160deg, #ff7a6e 0%, #ff5a5f 100%)'
+                  : 'linear-gradient(160deg, #5b4dff 0%, #4133ff 55%, #2e22d4 100%)';
+                return (
                   <button
                     key={g.name}
                     onClick={() => setSelectedGroup(g.name)}
-                    className={`relative aspect-square overflow-hidden text-left flex flex-col justify-end focus:outline-none focus-visible:outline-none transition-transform duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] ${isDark ? 'hover:-translate-y-1.5' : 'hover:-translate-y-1'}`}
+                    className="lift rounded-[22px] border bg-[var(--card)] p-2 flex flex-col text-left hover:-translate-y-1 focus:outline-none focus-ring-cyan"
                     style={{
-                      background: theme.outer,
-                      borderRadius: theme.radius,
-                      border: `4px solid ${theme.border}`,
-                      boxSizing: 'border-box',
-                      boxShadow: theme.baseShadow,
-                      containerType: 'inline-size',
+                      borderColor: g.pinned ? 'color-mix(in srgb, #ff5a5f 38%, var(--border))' : 'var(--border)',
+                      ['--lift-glow' as any]: g.pinned ? '0 14px 32px rgba(255,90,95,0.16)' : '0 14px 32px rgba(65,51,255,0.13)',
                     }}
-                    onMouseEnter={(e) => { e.currentTarget.style.boxShadow = theme.hoverShadow; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.boxShadow = theme.baseShadow; }}
                   >
-                    {/* Glossy highlight (dark theme only) — subtle wet sheen on
-                        the top 40% of the gradient. */}
-                    {theme.gloss && (
+                    {/* Gradient canvas */}
+                    <div className="relative rounded-[16px] px-4 py-4 overflow-hidden" style={{ background: accent }}>
+                      {/* Glossy top sheen — matches the DB cards. */}
                       <div
                         aria-hidden
-                        className="absolute pointer-events-none"
-                        style={{
-                          top: 0, left: 0, right: 0,
-                          height: '40%',
-                          background: 'linear-gradient(180deg, rgba(255,255,255,0.15) 0%, transparent 100%)',
-                          zIndex: 1,
-                        }}
+                        className="absolute inset-x-0 top-0 h-[40%] pointer-events-none"
+                        style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.14) 0%, transparent 100%)' }}
                       />
-                    )}
-                    {/* Pin control — sits over the blue tab area (top-right).
-                        Admin: clickable toggle. Non-admin: static indicator that
-                        only renders when pinned. Uses role="button" so we don't
-                        nest a real <button> inside the card <button>. */}
-                    {(isAdmin || g.pinned) && (
-                      <div
-                        role={isAdmin ? 'button' : undefined}
-                        aria-label={isAdmin ? (g.pinned ? `Unpin ${g.name}` : `Pin ${g.name}`) : g.pinned ? `${g.name} is pinned` : undefined}
-                        aria-pressed={isAdmin ? g.pinned : undefined}
-                        tabIndex={isAdmin ? 0 : -1}
-                        onClick={(e) => {
-                          if (!isAdmin) return;
-                          e.stopPropagation();
-                          togglePin(g.name, !g.pinned);
-                        }}
-                        onKeyDown={(e) => {
-                          if (!isAdmin) return;
-                          if (e.key === 'Enter' || e.key === ' ') {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            togglePin(g.name, !g.pinned);
-                          }
-                        }}
-                        className={`absolute z-10 flex items-center justify-center transition-[transform,opacity] duration-150 ease-[cubic-bezier(0.22,1,0.36,1)] ${isAdmin ? 'cursor-pointer hover:scale-110' : ''} ${pinBusy === g.name ? 'opacity-60' : ''}`}
-                        style={{
-                          top: '4.5cqw',
-                          right: '4.5cqw',
-                          width: '11cqw',
-                          height: '11cqw',
-                          minWidth: '28px',
-                          minHeight: '28px',
-                          borderRadius: '999px',
-                          background: g.pinned ? '#ffffff' : theme.pinChipBgUnpinned,
-                          border: `2px solid ${g.pinned ? '#ffffff' : theme.pinChipBorderUnpinned}`,
-                          boxShadow: g.pinned ? '0 2px 6px rgba(0,0,0,0.20)' : 'none',
-                          backdropFilter: !g.pinned && isDark ? 'blur(4px)' : 'none',
-                        }}
-                        title={isAdmin ? (g.pinned ? 'Unpin' : 'Pin to top') : 'Pinned'}
-                      >
-                        <Pin
-                          style={{
-                            width: '55%',
-                            height: '55%',
-                            color: g.pinned ? theme.pinIcon : '#ffffff',
-                            fill: g.pinned ? theme.pinIcon : 'transparent',
-                          }}
-                          strokeWidth={2.2}
-                        />
-                      </div>
-                    )}
 
-                    {/* Inner folder body — palette swaps per theme. */}
-                    <div
-                      className="flex flex-col justify-between relative"
-                      style={{
-                        width: '100%',
-                        height: theme.bodyHeight,
-                        background: theme.body,
-                        padding: theme.padding,
-                        boxSizing: 'border-box',
-                        clipPath: 'url(#folder-clip-square-optimized)',
-                        zIndex: 2,
-                      }}
-                    >
-                      <div className="flex flex-col min-w-0">
-                        <div
-                          className="truncate"
-                          style={{
-                            color: theme.title,
-                            fontWeight: theme.titleWeight,
-                            letterSpacing: '-0.018em',
-                            fontSize: theme.titleSize,
-                            lineHeight: 1.1,
-                            fontFamily: 'inherit',
-                            wordBreak: 'break-all',
-                            paddingRight: isDark ? '8.3cqw' : 0,
-                          }}
-                        >
-                          {g.name}
-                        </div>
-                        <div
-                          className="truncate"
-                          style={{
-                            color: theme.subtitle,
-                            fontWeight: 500,
-                            fontSize: isDark ? 'clamp(11px, 5.83cqw, 16px)' : 'clamp(11px, 6.25cqw, 18px)',
-                            lineHeight: 1.2,
-                            marginTop: isDark ? '2.5cqw' : '1.67cqw',
-                            fontFamily: 'inherit',
-                          }}
-                        >
-                          {g.projects.length} compose file{g.projects.length === 1 ? '' : 's'}
-                        </div>
+                      {/* Top row: project glyph + pin toggle */}
+                      <div className="relative flex items-center justify-between mb-4">
+                        <span className="grid h-8 w-8 place-items-center rounded-xl bg-white/20 text-white">
+                          <Layers className="h-4 w-4" />
+                        </span>
+                        {(isAdmin || g.pinned) && (
+                          <span
+                            role={isAdmin ? 'button' : undefined}
+                            aria-label={isAdmin ? (g.pinned ? `Unpin ${g.name}` : `Pin ${g.name}`) : g.pinned ? `${g.name} is pinned` : undefined}
+                            aria-pressed={isAdmin ? g.pinned : undefined}
+                            tabIndex={isAdmin ? 0 : -1}
+                            onClick={(e) => { if (!isAdmin) return; e.stopPropagation(); togglePin(g.name, !g.pinned); }}
+                            onKeyDown={(e) => { if (!isAdmin) return; if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); togglePin(g.name, !g.pinned); } }}
+                            className={`grid h-7 w-7 place-items-center rounded-full shrink-0 transition-transform ${isAdmin ? 'cursor-pointer hover:scale-110' : ''} ${pinBusy === g.name ? 'opacity-60' : ''}`}
+                            style={{ background: g.pinned ? '#ffffff' : 'rgba(255,255,255,0.20)' }}
+                            title={isAdmin ? (g.pinned ? 'Unpin' : 'Pin to top') : 'Pinned'}
+                          >
+                            <Pin
+                              className="h-3.5 w-3.5"
+                              style={{ color: g.pinned ? '#ff5a5f' : '#ffffff', fill: g.pinned ? '#ff5a5f' : 'transparent' }}
+                              strokeWidth={2.2}
+                            />
+                          </span>
+                        )}
                       </div>
 
-                      <div className="flex items-baseline" style={{ gap: '2.5cqw' }}>
-                        <span
-                          className="tabular-nums"
-                          style={{
-                            fontSize: theme.numberSize,
-                            fontWeight: 800,
-                            color: theme.number,
-                            lineHeight: 1,
-                          }}
-                        >
-                          {String(g.containerCount).padStart(2, '0')}
-                        </span>
-                        <span
-                          style={{
-                            fontSize: theme.labelSize,
-                            fontWeight: 600,
-                            color: theme.label,
-                            lineHeight: 1,
-                          }}
-                        >
-                          Containers
-                        </span>
-                      </div>
+                      {/* Project name + compose count */}
+                      <h3 className="relative text-[20px] font-bold leading-[1.15] tracking-tight text-white truncate" title={g.name}>
+                        {g.name}
+                      </h3>
+                      <p className="relative text-[12px] font-medium text-white/65 mt-1">
+                        {g.projects.length} compose file{g.projects.length === 1 ? '' : 's'}
+                      </p>
+                    </div>
+
+                    {/* Footer: container count */}
+                    <div className="px-2.5 pt-3 pb-1.5 flex items-baseline gap-2">
+                      <span className="text-[22px] font-bold tabular-nums text-[var(--ink)] leading-none">
+                        {String(g.containerCount).padStart(2, '0')}
+                      </span>
+                      <span className="text-[11px] font-medium uppercase tracking-wider text-[var(--ink-muted)]">
+                        Containers
+                      </span>
                     </div>
                   </button>
-                  );
-                })}
-              </div>
-            </>
+                );
+              })}
+            </div>
           )}
           </div>
         </div>

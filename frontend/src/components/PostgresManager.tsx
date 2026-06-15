@@ -4,7 +4,7 @@ import { useServers } from '../hooks/useServers';
 import { useServerStats } from '../hooks/useServerStats';
 import { useAuth } from '../hooks/useAuth';
 import { PostgresContainer, PostgresDatabase, PostgresCredential, PostgresContainerContext } from '../types/postgres';
-import { Database, Download, Server, Container, ChevronRight, KeyRound, Eye, EyeOff, Search, Upload, FileUp, AlertCircle, FolderOpen, Globe, Cog, Box, Sparkles } from 'lucide-react';
+import { Database, Download, Server, Container, ChevronRight, KeyRound, Eye, EyeOff, Search, Upload, FileUp, AlertCircle, FolderOpen, Sparkles } from 'lucide-react';
 import { ScrollArea } from './ui/scroll-area';
 import { GlassCard } from './ui/glass-card';
 import { AccentButton } from './ui/accent-button';
@@ -72,6 +72,18 @@ const parseSizeToBytes = (size: string | undefined | null): number | null => {
   return Math.round(n * factor);
 };
 
+// containerColor derives a stable accent color from a container name so each
+// sidebar row carries its own colored identity (the glyph stays the shared
+// database icon — only the color varies). Same name → same color on every
+// render/reload (pure char-sum hash, no Math.random). Colors reuse existing
+// theme hues so both light and dark stay on-palette.
+const IDENTITY_COLORS = ['#4285F4', '#5B4DFF', '#FF5A5F', '#10B981', '#A04EF6', '#FF6B35', '#0F9D9D', '#FBBC05'];
+const containerColor = (name: string): string => {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
+  return IDENTITY_COLORS[h % IDENTITY_COLORS.length];
+};
+
 interface DumpProgress {
   received: number;
   total: number | null; // null = indeterminate (chunked transfer w/o Content-Length)
@@ -119,6 +131,11 @@ export const PostgresManager = () => {
   // uses it, which DB is live, project path, etc. Null while loading or when
   // the container isn't compose-managed; renders the context strip when set.
   const [containerContext, setContainerContext] = useState<PostgresContainerContext | null>(null);
+  // True while the context call is in flight. The working view's layout depends
+  // on which DB is "live" (from context), so we hold the skeleton until context
+  // resolves — otherwise the grid renders the no-live layout first and visibly
+  // snaps into the two-column layout once context arrives.
+  const [contextLoading, setContextLoading] = useState(false);
 
   // Admin-configured per-container credentials (used for hardened images that
   // removed the default "postgres" role). Keyed by container name.
@@ -138,10 +155,13 @@ export const PostgresManager = () => {
   useEffect(() => {
     if (selectedServer && selectedContainer) {
       loadDatabases();
-      // Fetch the compose-project context in parallel — independent fetch so
-      // the database grid never waits on the context call.
+      // Fetch the compose-project context in parallel. We track its loading
+      // separately so the working view can wait for it before choosing a layout.
       setContainerContext(null);
-      getContainerContext(selectedServer, selectedContainer).then(setContainerContext);
+      setContextLoading(true);
+      getContainerContext(selectedServer, selectedContainer)
+        .then(setContainerContext)
+        .finally(() => setContextLoading(false));
     }
   }, [selectedContainer]);
 
@@ -346,6 +366,210 @@ export const PostgresManager = () => {
   const serverStatus = (s: (typeof servers)[number]) =>
     s.status === 'online' ? 'online' : s.status === 'checking' ? 'idle' : 'offline';
 
+  // Split the (filtered) databases into the in-use ("Live") set — the ones a
+  // sibling app container actually connects to — and everything else. The
+  // working view shows the used database on its own (left) and the rest beside
+  // the project info (right).
+  const liveDbSet = new Set(containerContext?.activeDatabases ?? []);
+  const liveDatabases = filteredDatabases.filter((d) => liveDbSet.has(d.name));
+  const otherDatabases = filteredDatabases.filter((d) => !liveDbSet.has(d.name));
+
+  // renderDbCard — the indigo database tile, shared by both columns so the live
+  // and "other" grids render identically. Closes over the dump progress state.
+  const renderDbCard = (db: PostgresDatabase) => {
+    const isDumping = dumpingDatabase === db.name;
+    const isLive = liveDbSet.has(db.name);
+    // Progress percentage only known when Content-Length is set; otherwise we
+    // render an indeterminate sweep below.
+    const pct =
+      isDumping && dumpProgress && dumpProgress.total
+        ? Math.min(100, Math.round((dumpProgress.received / dumpProgress.total) * 100))
+        : null;
+    return (
+      // Outer chassis — soft frame around the gradient indigo canvas, with hover lift.
+      <div
+        key={db.name}
+        className={`lift rounded-[22px] border bg-[var(--card)] p-2 flex flex-col hover:-translate-y-1 [--lift-glow:0_14px_32px_rgba(65,51,255,0.10)] ${isLive ? 'live-glow' : ''}`}
+        style={{
+          // Live DBs get a soft indigo hairline under the animated snake border
+          // (same family as the card); everything else stays neutral.
+          borderColor: isLive ? 'color-mix(in srgb, #5b4dff 45%, var(--border))' : 'var(--border)',
+        }}
+        title={isLive ? `In use by an app container in this compose project` : undefined}
+      >
+        {/* Display canvas — gradient indigo with subtle top sheen for depth. */}
+        <div
+          className="relative rounded-[16px] px-4 py-4 flex flex-col overflow-hidden"
+          style={{ background: 'linear-gradient(160deg, #5b4dff 0%, #4133ff 55%, #2e22d4 100%)' }}
+        >
+          {/* Glossy top sheen */}
+          <div
+            aria-hidden
+            className="absolute inset-x-0 top-0 h-[40%] pointer-events-none"
+            style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.12) 0%, transparent 100%)' }}
+          />
+
+          {/* Top row: Active status pill (+ Live pill) + Database icon chip. */}
+          <div className="relative flex items-center justify-between mb-3">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold text-[#1A1A1E] shadow-[0_2px_6px_rgba(0,0,0,0.08)]">
+                <span className="h-1.5 w-1.5 rounded-full bg-[var(--accent-green)]" />
+                Active
+              </span>
+              {isLive && (
+                <span
+                  className="inline-flex items-center gap-1 rounded-full bg-[var(--accent-green)] px-2.5 py-1 text-[11px] font-bold text-white shadow-[0_2px_6px_rgba(0,0,0,0.10)]"
+                  title="This database is referenced by an app container in this compose project."
+                >
+                  <Sparkles className="h-3 w-3" />
+                  Live
+                </span>
+              )}
+            </div>
+            <span className="grid h-7 w-7 place-items-center rounded-full bg-white/20 text-white">
+              <Database className="h-3.5 w-3.5" />
+            </span>
+          </div>
+
+          {/* Owner eyebrow + DB name title */}
+          <p className="relative text-[11px] font-medium text-white/65 mb-0.5 truncate uppercase tracking-wider">
+            {db.owner}
+          </p>
+          <h3 className="relative text-[22px] font-bold leading-[1.15] tracking-tight text-white line-clamp-2 break-all mb-3">
+            {db.name}
+          </h3>
+
+          {/* Encoding + engine pills (translucent on indigo) */}
+          <div className="relative flex flex-wrap gap-1.5">
+            <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-white/15 border border-white/25 text-white">
+              {db.encoding || 'UTF8'}
+            </span>
+            <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-white/15 border border-white/25 text-white">
+              PostgreSQL
+            </span>
+          </div>
+        </div>
+
+        {/* Footer — either size + Download CTA, or progress UI while dumping. */}
+        <div className="px-2.5 pt-3 pb-1.5">
+          {isDumping ? (
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-[12px] font-semibold text-[var(--ink)] inline-flex items-center gap-2">
+                  <Download className="h-3.5 w-3.5" />
+                  Downloading
+                  {pct !== null && <span className="tabular-nums">{pct}%</span>}
+                </span>
+                <span className="text-[11px] tabular-nums text-[var(--ink-muted)]">
+                  {dumpProgress ? formatBytes(dumpProgress.received) : '—'}
+                  {dumpProgress?.total ? ` / ${formatBytes(dumpProgress.total)}` : ''}
+                </span>
+              </div>
+              {/* Progress bar — determinate when total is known, indeterminate sweep otherwise. */}
+              <div className="h-2 rounded-full overflow-hidden" style={{ background: 'rgba(65,51,255,0.10)' }}>
+                {pct !== null ? (
+                  <div
+                    className="h-full w-full origin-left rounded-full transition-transform duration-150 ease-out"
+                    style={{ transform: `scaleX(${pct / 100})`, background: 'linear-gradient(90deg, #5b4dff, #4133ff)' }}
+                  />
+                ) : (
+                  <div className="h-full rounded-full pg-dump-indeterminate" />
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex flex-col gap-0 min-w-0">
+                <span className="text-[18px] font-bold tracking-tight tabular-nums text-[var(--ink)] leading-tight">
+                  {db.size || 'N/A'}
+                </span>
+                <span className="text-[11px] text-[var(--ink-muted)] uppercase tracking-wider">Database size</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => handleDump(db.name, db.size)}
+                disabled={loading}
+                className="inline-flex items-center gap-2 rounded-full bg-[var(--ink)] text-[var(--card)] px-5 py-3 text-sm font-bold hover:opacity-90 transition-opacity disabled:opacity-60 disabled:cursor-not-allowed shadow-[0_6px_16px_rgba(0,0,0,0.18)]"
+              >
+                <Download className="h-4 w-4" />
+                Download
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  // Minimal project summary — quiet by design (point: "there but not the hero").
+  // A compact warm strip: project + path on one line, consumers as small dots.
+  // Project summary — a quiet white panel (the section label above names it).
+  // h-full + a flex services list that distributes down the panel so it fills
+  // the height of the in-use card beside it rather than leaving dead space.
+  const projectStrip = containerContext?.hasProject ? (
+    <div className="rounded-xl border border-[var(--border)] bg-[var(--card-warm)] p-4 h-full flex flex-col">
+      {/* Header — project name + path */}
+      <div className="flex items-center gap-2 min-w-0 shrink-0">
+        <span className="grid h-7 w-7 place-items-center rounded-lg bg-[var(--accent-pink-soft)] text-[var(--accent-pink)] shrink-0">
+          <FolderOpen className="h-4 w-4" />
+        </span>
+        <span className="font-bold text-[var(--ink)] text-sm truncate">{containerContext.project}</span>
+        {containerContext.workingDir && (
+          <span className="font-mono text-[11px] text-[var(--ink-muted)] truncate hidden sm:inline" title={containerContext.workingDir}>
+            {containerContext.workingDir}
+          </span>
+        )}
+      </div>
+
+      {(containerContext.consumers ?? []).length > 0 ? (
+        <>
+          <div className="flex items-baseline justify-between mt-3 mb-1 shrink-0">
+            <span className="text-[10px] uppercase tracking-wider font-bold text-[var(--ink-muted)]">Used by</span>
+            <span className="text-[11px] text-[var(--ink-muted)] tabular-nums">{(containerContext.consumers ?? []).length} services</span>
+          </div>
+          {/* Service rows spread to fill the remaining height. */}
+          <div className="flex-1 flex flex-col justify-between min-h-0">
+            {(containerContext.consumers ?? []).map((cn) => {
+              const kindColor = cn.kind === 'frontend' ? '#4285F4' : cn.kind === 'backend' ? 'var(--accent-pink)' : 'var(--ink-muted)';
+              const serverAddr = servers.find((s) => s.id === selectedServer)?.address ?? '';
+              const ports = cn.ports ?? [];
+              const databases = cn.databases ?? [];
+              const url = cn.domain ? `https://${cn.domain}` : (ports[0] ? `http://${serverAddr}:${ports[0]}` : '');
+              const endpoint = cn.domain ?? (ports[0] ? `:${ports.join(', :')}` : '');
+              const tip = [cn.kind, url, databases.length ? `db: ${databases.join(', ')}` : '']
+                .filter(Boolean)
+                .join('  ·  ');
+              return (
+                <div key={cn.id} title={tip} className="flex items-center gap-2 min-w-0 text-xs py-1 cursor-default border-t border-[var(--border)] first:border-t-0">
+                  <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ background: kindColor }} />
+                  <span className="font-semibold text-[var(--ink)] truncate">{cn.name}</span>
+                  <span
+                    className="text-[9px] font-bold uppercase tracking-wider px-1 py-0.5 rounded shrink-0"
+                    style={{ background: `color-mix(in srgb, ${kindColor} 14%, transparent)`, color: kindColor }}
+                  >
+                    {cn.kind}
+                  </span>
+                  <span className="ml-auto flex items-center gap-1 min-w-0 shrink justify-end font-mono text-[var(--ink-muted)]">
+                    {databases.length > 0 ? (
+                      <>
+                        <Database className="h-3 w-3 text-[var(--accent-green)] shrink-0" />
+                        <span className="truncate text-[var(--ink)] font-semibold">{databases.join(', ')}</span>
+                      </>
+                    ) : endpoint ? (
+                      <span className="truncate">{endpoint}</span>
+                    ) : null}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      ) : (
+        <p className="text-xs text-[var(--ink-muted)] italic mt-3">No sibling containers detected in this compose project.</p>
+      )}
+    </div>
+  ) : null;
+
   // Don't flash the empty state while the initial fetch is in flight.
   if (!serversLoading && servers.length === 0) {
     return (
@@ -467,6 +691,8 @@ export const PostgresManager = () => {
                       const isSelected = selectedContainer === container.id;
                       const { duration, health } = parseContainerStatus(container.status);
                       const hasCustomCred = credentials.some((c: PostgresCredential) => c.containerName === container.name);
+                      // Deterministic per-container accent color so each row is scannable.
+                      const idColor = containerColor(container.name);
                       return (
                         <button
                           key={container.id}
@@ -479,25 +705,26 @@ export const PostgresManager = () => {
                           }}
                           className="w-full text-left p-2.5 rounded-xl mb-1 transition-[background-color,border-color,color] duration-150 ease-[cubic-bezier(0.4,0,0.2,1)] relative focus-ring-cyan flex items-center gap-3 border"
                           style={{
-                            // Indigo-tinted selected state matches the card identity.
-                            background: isSelected ? 'rgba(91, 77, 255, 0.10)' : 'transparent',
-                            borderColor: isSelected ? 'rgba(91, 77, 255, 0.28)' : 'transparent',
-                            boxShadow: isSelected ? '0 2px 10px rgba(65, 51, 255, 0.08)' : 'none',
+                            // Selected = a solid surface gently washed with the container's
+                            // own accent (gradient → card), so it reads as a raised tile in
+                            // both light and dark instead of a flat translucent tint.
+                            background: isSelected
+                              ? `linear-gradient(135deg, color-mix(in srgb, ${idColor} 13%, var(--card)) 0%, var(--card) 78%)`
+                              : 'transparent',
+                            borderColor: isSelected ? `color-mix(in srgb, ${idColor} 32%, transparent)` : 'transparent',
+                            boxShadow: isSelected ? `0 4px 14px color-mix(in srgb, ${idColor} 18%, transparent)` : 'none',
                           }}
                           onMouseEnter={(e) => { if (!isSelected) e.currentTarget.style.background = 'rgba(0,0,0,0.04)'; }}
                           onMouseLeave={(e) => { if (!isSelected) e.currentTarget.style.background = 'transparent'; }}
                         >
-                          {/* Accent rail visible only when selected */}
-                          {isSelected && (
-                            <span className="absolute left-0 top-2.5 bottom-2.5 w-[3px] rounded-r-full" style={{ background: '#4133ff' }} />
-                          )}
-                          {/* Icon chip — solid indigo when selected, muted otherwise */}
+                          {/* Icon chip — shared database glyph, per-container color.
+                              Solid fill + colored glow when selected; soft tint otherwise. */}
                           <div
                             className="h-9 w-9 rounded-xl flex items-center justify-center shrink-0 transition-colors"
                             style={
                               isSelected
-                                ? { background: '#4133ff', color: '#ffffff' }
-                                : { background: 'rgba(0,0,0,0.04)', color: 'var(--ink-muted)' }
+                                ? { background: idColor, color: '#ffffff', boxShadow: `0 4px 12px color-mix(in srgb, ${idColor} 45%, transparent)` }
+                                : { background: `color-mix(in srgb, ${idColor} 14%, transparent)`, color: idColor }
                             }
                           >
                             <Database className="h-4 w-4" />
@@ -507,13 +734,15 @@ export const PostgresManager = () => {
                             <div
                               className="text-sm truncate"
                               style={{
-                                color: isSelected ? '#1e1b4b' : 'var(--ink)',
+                                // Selected name darkens the accent toward ink so it stays
+                                // readable in both themes while echoing the chip color.
+                                color: isSelected ? `color-mix(in srgb, ${idColor} 55%, var(--ink))` : 'var(--ink)',
                                 fontWeight: isSelected ? 700 : 500,
                               }}
                             >
                               {container.name}
                             </div>
-                            <div className="text-[11px] flex items-center gap-1.5 mt-0.5" style={{ color: isSelected ? 'rgba(30,27,75,0.65)' : 'var(--ink-muted)' }}>
+                            <div className="text-[11px] flex items-center gap-1.5 mt-0.5" style={{ color: 'var(--ink-muted)' }}>
                               <span
                                 className="h-1.5 w-1.5 rounded-full shrink-0"
                                 style={{ background: HEALTH_DOT_COLOR[health] }}
@@ -530,7 +759,7 @@ export const PostgresManager = () => {
                               )}
                             </div>
                           </div>
-                          {isSelected && <ChevronRight className="h-4 w-4 shrink-0" style={{ color: '#4133ff' }} />}
+                          {isSelected && <ChevronRight className="h-4 w-4 shrink-0" style={{ color: idColor }} />}
                         </button>
                       );
                     })
@@ -577,79 +806,6 @@ export const PostgresManager = () => {
                           </button>
                         </div>
                       </div>
-
-                      {/* Context strip — project path + consumer apps + active-DB hints.
-                          Hidden when the container isn't compose-managed (hasProject=false). */}
-                      {containerContext?.hasProject && (
-                        <div className="bento-card p-4 mb-6">
-                          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 mb-3 text-sm">
-                            <div className="inline-flex items-center gap-1.5">
-                              <FolderOpen className="h-4 w-4 text-[var(--accent-pink)]" />
-                              <span className="text-[11px] uppercase tracking-wider font-bold text-[var(--ink-muted)]">Project</span>
-                            </div>
-                            <span className="font-semibold text-[var(--ink)]">{containerContext.project}</span>
-                            {containerContext.workingDir && (
-                              <span className="font-mono text-xs text-[var(--ink-muted)] truncate max-w-full" title={containerContext.workingDir}>
-                                {containerContext.workingDir}
-                              </span>
-                            )}
-                          </div>
-
-                          {(containerContext.consumers ?? []).length === 0 ? (
-                            <p className="text-xs text-[var(--ink-muted)] italic">
-                              No sibling containers detected in this compose project.
-                            </p>
-                          ) : (
-                            <div>
-                              <div className="text-[11px] uppercase tracking-wider font-bold text-[var(--ink-muted)] mb-2">Used by</div>
-                              <ul className="flex flex-col gap-1.5">
-                                {(containerContext.consumers ?? []).map((cn) => {
-                                  const KindIcon = cn.kind === 'frontend' ? Globe : cn.kind === 'backend' ? Cog : Box;
-                                  const serverAddr = servers.find((s) => s.id === selectedServer)?.address ?? '';
-                                  // Go marshals empty slices as JSON null, so ports/databases can arrive
-                                  // null despite the string[] type — normalize before any array access.
-                                  const ports = cn.ports ?? [];
-                                  const databases = cn.databases ?? [];
-                                  const firstPort = ports[0];
-                                  const url = cn.domain
-                                    ? `https://${cn.domain}`
-                                    : (firstPort ? `http://${serverAddr}:${firstPort}` : null);
-                                  return (
-                                    <li key={cn.id} className="flex items-center flex-wrap gap-x-2 gap-y-1 text-sm">
-                                      <KindIcon className="h-3.5 w-3.5 text-[var(--ink-muted)] shrink-0" />
-                                      <span className="font-medium text-[var(--ink)] truncate" title={cn.name}>{cn.name}</span>
-                                      <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--ink-muted)] px-1.5 py-0.5 rounded bg-[var(--card-warm,rgba(0,0,0,0.04))]">{cn.kind}</span>
-                                      {ports.length > 0 && (
-                                        <span className="text-xs text-[var(--ink-muted)] font-mono">:{ports.join(', :')}</span>
-                                      )}
-                                      {url && (
-                                        cn.domain ? (
-                                          <a href={url} target="_blank" rel="noreferrer noopener" className="text-xs text-[var(--accent-pink)] hover:underline truncate" title={url}>
-                                            {cn.domain}
-                                          </a>
-                                        ) : (
-                                          <span className="text-xs text-[var(--ink-muted)] font-mono truncate" title={url}>{url}</span>
-                                        )
-                                      )}
-                                      {databases.length > 0 && (
-                                        <span className="inline-flex items-center gap-1 text-xs text-[var(--ink)]">
-                                          <Database className="h-3 w-3 text-[var(--accent-pink)]" />
-                                          <span className="font-mono font-semibold">{databases.join(', ')}</span>
-                                          {cn.envSource && (
-                                            <span className="text-[10px] text-[var(--ink-muted)]" title={`Inferred from ${cn.envSource}`}>
-                                              ({cn.envSource})
-                                            </span>
-                                          )}
-                                        </span>
-                                      )}
-                                    </li>
-                                  );
-                                })}
-                              </ul>
-                            </div>
-                          )}
-                        </div>
-                      )}
 
                       {/* DB Credentials dialog — explicit user / password / maintenance DB
                           for hardened containers without the default "postgres" role.
@@ -899,164 +1055,98 @@ export const PostgresManager = () => {
                         </DialogContent>
                       </Dialog>
 
-                      {/* Database search — hidden until databases load. */}
-                      {databases.length > 0 && (
-                        <div className="relative mb-5 max-w-md">
-                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--ink-muted)] pointer-events-none" />
-                          <input
-                            type="text"
-                            value={databaseSearch}
-                            onChange={(e) => setDatabaseSearch(e.target.value)}
-                            placeholder="Search databases by name or owner…"
-                            className="w-full h-10 pl-9 pr-3 rounded-xl bg-[var(--card)] border border-[var(--border)] text-sm text-[var(--ink)] placeholder:text-[var(--ink-muted)] focus:outline-none focus:border-[var(--ink)]/30 transition-colors"
-                          />
-                        </div>
-                      )}
-
-                      {/* Database Grid */}
-                      {loadingDatabases ? (
-                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                          <GlassSkeleton.Card count={3} />
+                      {/* Working area — left: the in-use database on its own; right:
+                          a minimal project summary with the other databases under it.
+                          We hold the skeleton until BOTH databases and context have
+                          loaded, so the layout never snaps from no-live to two-column. */}
+                      {loadingDatabases || contextLoading ? (
+                        // Skeleton mirrors the working layout (matched pair on top, then
+                        // a full-width grid) so the shape doesn't jump when cards land.
+                        <div className="space-y-5">
+                          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                            <div className="space-y-3">
+                              <GlassSkeleton className="h-3 w-16 rounded" />
+                              <GlassSkeleton.Card count={1} />
+                            </div>
+                            <div className="space-y-3">
+                              <GlassSkeleton className="h-3 w-16 rounded" />
+                              <GlassSkeleton.Card count={1} />
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+                            <GlassSkeleton.Card count={3} />
+                          </div>
                         </div>
                       ) : databases.length === 0 ? (
                         <div className="text-center py-16">
                           <Database className="h-16 w-16 text-[var(--ink-muted)] mx-auto mb-4" />
                           <p className="text-[var(--ink-muted)]">No databases found in this container</p>
                         </div>
-                      ) : filteredDatabases.length === 0 ? (
-                        <div className="text-center py-12 text-sm text-[var(--ink-muted)]">
-                          No databases match "{databaseSearch}".
-                        </div>
                       ) : (
-                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-                          {filteredDatabases.map((db) => {
-                            const isDumping = dumpingDatabase === db.name;
-                            // "Live" = this DB name appears in env vars of a sibling
-                            // app container, i.e. the one your app actually connects to.
-                            const isLive = containerContext?.activeDatabases?.includes(db.name) ?? false;
-                            // Progress percentage only known when Content-Length is set;
-                            // otherwise we render an indeterminate sweep below.
-                            const pct =
-                              isDumping && dumpProgress && dumpProgress.total
-                                ? Math.min(100, Math.round((dumpProgress.received / dumpProgress.total) * 100))
-                                : null;
-                            return (
-                              // Outer chassis — soft frame around the gradient indigo canvas, with hover lift.
-                              <div
-                                key={db.name}
-                                className="lift rounded-[22px] border bg-[var(--card)] p-2 flex flex-col hover:-translate-y-1 [--lift-glow:0_14px_32px_rgba(65,51,255,0.10)]"
-                                style={{
-                                  // Live DBs get an accent-green hairline so they're scannable
-                                  // from across the grid; everything else keeps the neutral border.
-                                  borderColor: isLive ? 'var(--accent-green)' : 'var(--border)',
-                                }}
-                                title={isLive ? `In use by an app container in this compose project` : undefined}
-                              >
-                                {/* Display canvas — gradient indigo with subtle top sheen for depth. */}
-                                <div
-                                  className="relative rounded-[16px] px-4 py-4 flex flex-col overflow-hidden"
-                                  style={{ background: 'linear-gradient(160deg, #5b4dff 0%, #4133ff 55%, #2e22d4 100%)' }}
-                                >
-                                  {/* Glossy top sheen */}
-                                  <div
-                                    aria-hidden
-                                    className="absolute inset-x-0 top-0 h-[40%] pointer-events-none"
-                                    style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.12) 0%, transparent 100%)' }}
-                                  />
+                        <>
+                          {/* Database search */}
+                          <div className="relative mb-5 max-w-md">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--ink-muted)] pointer-events-none" />
+                            <input
+                              type="text"
+                              value={databaseSearch}
+                              onChange={(e) => setDatabaseSearch(e.target.value)}
+                              placeholder="Search databases by name or owner…"
+                              className="w-full h-10 pl-9 pr-3 rounded-xl bg-[var(--card)] border border-[var(--border)] text-sm text-[var(--ink)] placeholder:text-[var(--ink-muted)] focus:outline-none focus:border-[var(--ink)]/30 transition-colors"
+                            />
+                          </div>
 
-                                  {/* Top row: Active status pill (+ Live pill when this DB is the
-                                      one a sibling app container connects to) + Database icon chip. */}
-                                  <div className="relative flex items-center justify-between mb-3">
-                                    <div className="flex items-center gap-1.5 flex-wrap">
-                                      <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold text-[#1A1A1E] shadow-[0_2px_6px_rgba(0,0,0,0.08)]">
-                                        <span className="h-1.5 w-1.5 rounded-full bg-[var(--accent-green)]" />
-                                        Active
-                                      </span>
-                                      {isLive && (
-                                        <span
-                                          className="inline-flex items-center gap-1 rounded-full bg-[var(--accent-green)] px-2.5 py-1 text-[11px] font-bold text-white shadow-[0_2px_6px_rgba(0,0,0,0.10)]"
-                                          title="This database is referenced by an app container in this compose project."
-                                        >
-                                          <Sparkles className="h-3 w-3" />
-                                          Live
-                                        </span>
-                                      )}
-                                    </div>
-                                    <span className="grid h-7 w-7 place-items-center rounded-full bg-white/20 text-white">
-                                      <Database className="h-3.5 w-3.5" />
-                                    </span>
+                          {filteredDatabases.length === 0 ? (
+                            <div className="text-center py-12 text-sm text-[var(--ink-muted)]">
+                              No databases match "{databaseSearch}".
+                            </div>
+                          ) : liveDatabases.length > 0 ? (
+                            <div className="space-y-5">
+                              {/* Top row — the in-use database and the project sit side by
+                                  side at equal width and height, so they read as a matched
+                                  pair. The project panel stretches (h-full) to the card. */}
+                              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-stretch">
+                                {/* In use */}
+                                <div className="flex flex-col gap-3 min-w-0">
+                                  <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider font-bold text-[var(--ink-muted)]">
+                                    <Sparkles className="h-3 w-3 text-[var(--accent-green)]" />
+                                    In use
                                   </div>
-
-                                  {/* Owner eyebrow + DB name title */}
-                                  <p className="relative text-[11px] font-medium text-white/65 mb-0.5 truncate uppercase tracking-wider">
-                                    {db.owner}
-                                  </p>
-                                  <h3 className="relative text-[22px] font-bold leading-[1.15] tracking-tight text-white line-clamp-2 break-all mb-3">
-                                    {db.name}
-                                  </h3>
-
-                                  {/* Encoding + engine pills (translucent on indigo) */}
-                                  <div className="relative flex flex-wrap gap-1.5">
-                                    <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-white/15 border border-white/25 text-white">
-                                      {db.encoding || 'UTF8'}
-                                    </span>
-                                    <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-white/15 border border-white/25 text-white">
-                                      PostgreSQL
-                                    </span>
-                                  </div>
+                                  {liveDatabases.map(renderDbCard)}
                                 </div>
-
-                                {/* Footer — either size + Download CTA, or full-width progress UI while dumping. */}
-                                <div className="px-2.5 pt-3 pb-1.5">
-                                  {isDumping ? (
-                                    <div>
-                                      <div className="flex items-center justify-between mb-1.5">
-                                        <span className="text-[12px] font-semibold text-[var(--ink)] inline-flex items-center gap-2">
-                                          <Download className="h-3.5 w-3.5" />
-                                          Downloading
-                                          {pct !== null && <span className="tabular-nums">{pct}%</span>}
-                                        </span>
-                                        <span className="text-[11px] tabular-nums text-[var(--ink-muted)]">
-                                          {dumpProgress ? formatBytes(dumpProgress.received) : '—'}
-                                          {dumpProgress?.total ? ` / ${formatBytes(dumpProgress.total)}` : ''}
-                                        </span>
-                                      </div>
-                                      {/* Progress bar — determinate when total is known, indeterminate sweep otherwise. */}
-                                      <div className="h-2 rounded-full overflow-hidden" style={{ background: 'rgba(65,51,255,0.10)' }}>
-                                        {pct !== null ? (
-                                          <div
-                                            className="h-full w-full origin-left rounded-full transition-transform duration-150 ease-out"
-                                            style={{ transform: `scaleX(${pct / 100})`, background: 'linear-gradient(90deg, #5b4dff, #4133ff)' }}
-                                          />
-                                        ) : (
-                                          <div className="h-full rounded-full pg-dump-indeterminate" />
-                                        )}
-                                      </div>
-                                    </div>
-                                  ) : (
-                                    <div className="flex items-center justify-between gap-3">
-                                      <div className="flex flex-col gap-0 min-w-0">
-                                        <span className="text-[18px] font-bold tracking-tight tabular-nums text-[var(--ink)] leading-tight">
-                                          {db.size || 'N/A'}
-                                        </span>
-                                        <span className="text-[11px] text-[var(--ink-muted)] uppercase tracking-wider">Database size</span>
-                                      </div>
-                                      <button
-                                        type="button"
-                                        onClick={() => handleDump(db.name, db.size)}
-                                        disabled={loading}
-                                        className="inline-flex items-center gap-2 rounded-full bg-[var(--ink)] text-[var(--card)] px-5 py-3 text-sm font-bold hover:opacity-90 transition-opacity disabled:opacity-60 disabled:cursor-not-allowed shadow-[0_6px_16px_rgba(0,0,0,0.18)]"
-                                      >
-                                        <Download className="h-4 w-4" />
-                                        Download
-                                      </button>
-                                    </div>
-                                  )}
+                                {/* Project */}
+                                <div className="flex flex-col gap-3 min-w-0">
+                                  <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider font-bold text-[var(--ink-muted)]">
+                                    <FolderOpen className="h-3 w-3" />
+                                    Project
+                                  </div>
+                                  {projectStrip}
                                 </div>
                               </div>
-                            );
-                          })}
-                        </div>
+                              {/* Other databases — full width below the matched pair */}
+                              {otherDatabases.length > 0 && (
+                                <div>
+                                  <div className="flex items-baseline justify-between mb-2.5">
+                                    <span className="text-[10px] uppercase tracking-wider font-bold text-[var(--ink-muted)]">Other databases</span>
+                                    <span className="text-[11px] text-[var(--ink-muted)] tabular-nums">{otherDatabases.length}</span>
+                                  </div>
+                                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+                                    {otherDatabases.map(renderDbCard)}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            // No in-use database detected → quiet project summary, then
+                            // every database in the usual full-width grid.
+                            <div className="space-y-4">
+                              {projectStrip}
+                              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+                                {otherDatabases.map(renderDbCard)}
+                              </div>
+                            </div>
+                          )}
+                        </>
                       )}
                     </>
                   ) : (

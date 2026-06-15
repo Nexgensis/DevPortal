@@ -469,6 +469,59 @@ html {
     0%   { background-position: -40% 0; }
     100% { background-position: 140% 0; }
   }
+
+  /* .live-glow — the in-use ("Live") database card. An indigo light (same family
+     as the card itself) travels around the border like a snake: a rotating
+     conic-gradient on a ::before masked to just the ring, plus a soft ambient
+     indigo aura. The .lift hover glow lives on a separate ::after pseudo, so the
+     two never fight. */
+  .live-glow {
+    position: relative;
+    box-shadow: 0 10px 32px color-mix(in srgb, #5b4dff 26%, transparent);
+  }
+  .live-glow::before {
+    content: "";
+    position: absolute;
+    inset: -3px;
+    border-radius: inherit;
+    padding: 3px;                     /* ring thickness — chunky enough to read */
+    /* A bright "head" (white→light-indigo) with a long transparent tail that the
+       rotating angle sweeps around the perimeter. */
+    background: conic-gradient(from var(--snake-angle),
+      transparent 0deg,
+      transparent 175deg,
+      color-mix(in srgb, #5b4dff 30%, transparent) 235deg,
+      #5b4dff 310deg,
+      #a89fff 340deg,
+      #ffffff 357deg,
+      transparent 360deg);
+    /* Show only the padding ring (classic gradient-border mask). */
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+            mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+            mask-composite: exclude;
+    pointer-events: none;
+    animation: snakeTravel 2.6s linear infinite;
+  }
+  @keyframes snakeTravel {
+    to { --snake-angle: 360deg; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .live-glow::before { animation: none; }
+    .live-glow {
+      box-shadow: 0 0 0 1.5px color-mix(in srgb, #5b4dff 55%, transparent),
+                  0 12px 32px color-mix(in srgb, #5b4dff 28%, transparent);
+    }
+  }
+}
+
+/* Registered so the conic-gradient angle can be animated (un-registered custom
+   properties can't be interpolated). Must live at the top level, not in @layer.
+   Browsers without @property fall back to a static blue ring — still on-brand. */
+@property --snake-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
 }
 
 /* === Dark-mode adaptation for components that hardcode light Tailwind utilities ===
