@@ -1,0 +1,20 @@
+# Wiki image uploads — user-generated content, lives outside source control.
+backend/uploads/
+uploads/
+
+# DB dump files — gitignored by convention; written by hand during local work.
+backups/
+
+# Local env overrides (real secrets live in deploy envs, never in the repo).
+.env
+.env.local
+*.env.local
+
+# Playwright MCP scratch dir — screenshots, snapshots, and console logs written
+# by the browser tools during local verification. Not source.
+.playwright-mcp/
+
+# Browser-test screenshots dropped at the repo root by Playwright. Leading
+# slash anchors the rule so we don't accidentally ignore legitimate PNGs
+# in frontend/src/assets/ or frontend/public/.
+/*.png
