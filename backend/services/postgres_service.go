@@ -1,7 +1,9 @@
 package services
 
 import (
+	"bufio"
 	"bytes"
+	"compress/gzip"
 	"context"
 	"fmt"
 	"io"
@@ -389,4 +391,145 @@ func (s *PostgresService) execCapture(ctx context.Context, cli *client.Client, c
 	}
 
 	return stdoutBuf.String(), stderrBuf.String(), nil
+}
+
+// validDBName guards target database names supplied by the user before they're
+// passed to createdb/psql. Same identifier rule as validRoleName (letters, digits,
+// underscore, hyphen; ≤63 chars). Postgres identifier limit is 63 bytes.
+var validDBName = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_-]{0,62}$`)
+
+// isDatabaseAlreadyExistsErr reports whether createdb failed specifically because
+// the target database already exists. PostgreSQL error message format from
+// createdb is: `createdb: error: database creation failed: ERROR: database "X"
+// already exists`. We key on the stable phrase so we can return a meaningful
+// HTTP status (409 Conflict) instead of a generic 500.
+func isDatabaseAlreadyExistsErr(stderr string) bool {
+	return strings.Contains(strings.ToLower(stderr), "already exists")
+}
+
+// ErrTargetDatabaseExists is returned by RestoreDatabase when the user-supplied
+// targetDB already exists on the container. The caller (controller) maps this to
+// a 409 Conflict response with a clear message — the user is supposed to pick a
+// different name (see README §5 "Restoring with rename").
+var ErrTargetDatabaseExists = fmt.Errorf("target database already exists")
+
+// RestoreDatabase creates a fresh database named targetDB inside the container
+// and streams the SQL dump (sqlReader) through psql to populate it. The dump
+// can be plain SQL or gzip-compressed — the format is auto-detected via magic
+// bytes so users can restore exactly what they downloaded from CreateDump.
+//
+// Refuses if targetDB already exists: createdb errors out with "already exists"
+// and we return ErrTargetDatabaseExists so the controller can return 409. This
+// is the explicit fail-safe behaviour requested by the user: never silently drop
+// or overwrite a live database — they must pick a new name to restore alongside.
+//
+// On psql failure mid-stream we deliberately leave the partially-restored DB in
+// place rather than dropping it; the user can inspect/drop manually. The error
+// message surfaces psql's stderr so the cause (syntax error, missing extension,
+// etc.) is visible.
+func (s *PostgresService) RestoreDatabase(
+	ctx context.Context,
+	server *models.Server,
+	containerID, targetDB string,
+	sqlReader io.Reader,
+	creds *PostgresCreds,
+) error {
+	if !validDBName.MatchString(targetDB) {
+		return fmt.Errorf("invalid database name %q (letters, digits, underscore, hyphen only; must start with a letter or underscore; max 63 chars)", targetDB)
+	}
+
+	cli, err := NewDockerClient(server)
+	if err != nil {
+		return err
+	}
+	defer cli.Close()
+
+	// Same credential resolution path as CreateDump: probe with SELECT 1 and
+	// reuse the first identity that connects. createdb + psql both run under it.
+	role, osUser, env := s.resolveDumpExec(ctx, cli, containerID, server, creds)
+
+	// Step 1 — create the target database. Fails fast if it already exists,
+	// surfacing the "already exists" stderr as ErrTargetDatabaseExists.
+	createCmd := []string{"createdb", "-U", role, targetDB}
+	if _, stderr, err := s.execCapture(ctx, cli, containerID, osUser, env, createCmd); err != nil {
+		if isDatabaseAlreadyExistsErr(stderr) {
+			return ErrTargetDatabaseExists
+		}
+		return fmt.Errorf("createdb failed: %w (%s)", err, strings.TrimSpace(stderr))
+	}
+
+	// Step 2 — auto-detect a gzip-compressed dump via the magic bytes (1f 8b)
+	// and wrap the reader with a streaming gunzip if so. This lets users restore
+	// the exact file CreateDump produces (which is gzip with a .sql extension —
+	// the dump endpoint sets Content-Encoding: gzip so browsers save it raw).
+	br := bufio.NewReader(sqlReader)
+	magic, _ := br.Peek(2)
+	var sqlInput io.Reader = br
+	var gzReader *gzip.Reader
+	if len(magic) == 2 && magic[0] == 0x1f && magic[1] == 0x8b {
+		gzReader, err = gzip.NewReader(br)
+		if err != nil {
+			return fmt.Errorf("failed to open gzip stream: %w", err)
+		}
+		defer gzReader.Close()
+		sqlInput = gzReader
+	}
+
+	// Step 3 — stream the SQL into psql via stdin. ON_ERROR_STOP=1 makes psql
+	// abort on the first failing statement so a corrupt dump can't silently
+	// leave a partial schema; the non-zero exit is then surfaced as an error.
+	execCfg := container.ExecOptions{
+		User:         osUser,
+		Env:          env,
+		Cmd:          []string{"psql", "-U", role, "-d", targetDB, "-v", "ON_ERROR_STOP=1"},
+		AttachStdin:  true,
+		AttachStdout: true,
+		AttachStderr: true,
+		Tty:          false,
+	}
+	execResp, err := cli.ContainerExecCreate(ctx, containerID, execCfg)
+	if err != nil {
+		return fmt.Errorf("failed to create psql exec: %w", err)
+	}
+	hijacked, err := cli.ContainerExecAttach(ctx, execResp.ID, container.ExecAttachOptions{Tty: false})
+	if err != nil {
+		return fmt.Errorf("failed to attach psql exec: %w", err)
+	}
+	defer hijacked.Close()
+
+	// Pipe the SQL into psql's stdin in a goroutine; closing stdin (CloseWrite
+	// on the underlying TCP conn) tells psql we're done so it can finish the
+	// transaction and exit cleanly.
+	writeErrCh := make(chan error, 1)
+	go func() {
+		_, copyErr := io.Copy(hijacked.Conn, sqlInput)
+		if cw, ok := hijacked.Conn.(interface{ CloseWrite() error }); ok {
+			_ = cw.CloseWrite()
+		}
+		writeErrCh <- copyErr
+	}()
+
+	// Drain stdout + stderr while psql consumes stdin.
+	var stdoutBuf, stderrBuf bytes.Buffer
+	_, readErr := stdcopy.StdCopy(&stdoutBuf, &stderrBuf, hijacked.Reader)
+	writeErr := <-writeErrCh
+
+	if writeErr != nil && writeErr != io.EOF {
+		return fmt.Errorf("failed to stream SQL into psql: %w (psql said: %s)", writeErr, strings.TrimSpace(stderrBuf.String()))
+	}
+	if readErr != nil {
+		return fmt.Errorf("psql output stream failed: %w (%s)", readErr, strings.TrimSpace(stderrBuf.String()))
+	}
+
+	// Non-zero exit = psql aborted (ON_ERROR_STOP fired, auth failed, etc.). The
+	// partial database is intentionally left in place for the user to inspect.
+	if inspect, ierr := cli.ContainerExecInspect(ctx, execResp.ID); ierr == nil && inspect.ExitCode != 0 {
+		msg := strings.TrimSpace(stderrBuf.String())
+		if msg == "" {
+			msg = strings.TrimSpace(stdoutBuf.String())
+		}
+		return fmt.Errorf("psql exited with code %d (partial DB %q left in place): %s", inspect.ExitCode, targetDB, msg)
+	}
+
+	return nil
 }

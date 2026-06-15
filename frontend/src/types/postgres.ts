@@ -39,3 +39,25 @@ export interface PostgresCredentialInput {
   dbName: string;
   dbPassword?: string;
 }
+
+/** One non-postgres sibling in the same compose project as a postgres container. */
+export interface PostgresConsumer {
+  id: string;
+  name: string;
+  image: string;
+  kind: 'frontend' | 'backend' | 'service';
+  ports: number[];
+  domain?: string;
+  databases: string[];           // DB names inferred from this consumer's env vars
+  envSource?: string;            // comma-separated env keys that produced them
+}
+
+/** Compose-project context for a postgres container — answers "what uses this DB?". */
+export interface PostgresContainerContext {
+  hasProject: boolean;
+  project?: string;
+  workingDir?: string;
+  consumers: PostgresConsumer[];
+  activeDatabases: string[];     // union of every consumer's discovered DBs
+  agentMissing: boolean;
+}
