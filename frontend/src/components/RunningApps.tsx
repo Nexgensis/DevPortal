@@ -4,7 +4,7 @@ import { useServerStats } from '../hooks/useServerStats';
 import { useRunningApps } from '../hooks/useRunningApps';
 import { useAuth } from '../hooks/useAuth';
 import { ProjectGroup, ContainerView } from '../types/runningapps';
-import { Rocket, Server, ChevronRight, ChevronLeft, ChevronDown, ExternalLink, FolderKanban, AlertTriangle, Copy, Check, RefreshCw, Pin, Globe, Layers, Container as ContainerIcon, FileCode2 } from 'lucide-react';
+import { Rocket, Server, ChevronRight, ChevronLeft, ChevronDown, ExternalLink, FolderKanban, AlertTriangle, Copy, Check, RefreshCw, Pin, Globe, Layers, Container as ContainerIcon, FileCode2, Search } from 'lucide-react';
 import { GlassCard } from './ui/glass-card';
 import { AccentButton } from './ui/accent-button';
 import { StatusBadge } from './ui/status-badge';
@@ -353,6 +353,7 @@ export const RunningApps = () => {
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
   const [servicesOpen, setServicesOpen] = useState(false); // services drill-in section is collapsed by default
   const [copied, setCopied] = useState(false);
+  const [drillSearch, setDrillSearch] = useState('');
 
   const selectedServerData = useMemo(() => servers.find((s) => s.id === selectedServer), [servers, selectedServer]);
   const serverStatus = (s: (typeof servers)[number]) =>
@@ -378,6 +379,16 @@ export const RunningApps = () => {
     }
     return { frontends, services };
   }, [drillGroup]);
+
+  // Case-insensitive container-name filter applied to both lists.
+  const drillSplitFiltered = useMemo(() => {
+    const q = drillSearch.trim().toLowerCase();
+    if (!q) return drillSplit;
+    return {
+      frontends: drillSplit.frontends.filter(({ c }) => c.name.toLowerCase().includes(q)),
+      services: drillSplit.services.filter(({ c }) => c.name.toLowerCase().includes(q)),
+    };
+  }, [drillSplit, drillSearch]);
 
   const load = async () => {
     if (!selectedServer) return;
@@ -551,7 +562,7 @@ export const RunningApps = () => {
             ).map((stat) => (
               <div
                 key={stat.label}
-                className="relative overflow-hidden transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md"
+                className="lift-shadow relative overflow-hidden hover:-translate-y-0.5 hover:shadow-md"
                 style={{
                   background: stat.bg,
                   border: `${isDark ? '4px' : '2px'} solid ${stat.border}`,
@@ -739,7 +750,7 @@ export const RunningApps = () => {
                   <button
                     key={g.name}
                     onClick={() => setSelectedGroup(g.name)}
-                    className={`relative aspect-square overflow-hidden text-left flex flex-col justify-end focus:outline-none focus-visible:outline-none transition-all duration-[250ms] ease-out ${isDark ? 'hover:-translate-y-1.5' : 'hover:-translate-y-1'}`}
+                    className={`relative aspect-square overflow-hidden text-left flex flex-col justify-end focus:outline-none focus-visible:outline-none transition-transform duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] ${isDark ? 'hover:-translate-y-1.5' : 'hover:-translate-y-1'}`}
                     style={{
                       background: theme.outer,
                       borderRadius: theme.radius,
@@ -788,7 +799,7 @@ export const RunningApps = () => {
                             togglePin(g.name, !g.pinned);
                           }
                         }}
-                        className={`absolute z-10 flex items-center justify-center transition-all ${isAdmin ? 'cursor-pointer hover:scale-110' : ''} ${pinBusy === g.name ? 'opacity-60' : ''}`}
+                        className={`absolute z-10 flex items-center justify-center transition-[transform,opacity] duration-150 ease-[cubic-bezier(0.22,1,0.36,1)] ${isAdmin ? 'cursor-pointer hover:scale-110' : ''} ${pinBusy === g.name ? 'opacity-60' : ''}`}
                         style={{
                           top: '4.5cqw',
                           right: '4.5cqw',
@@ -895,21 +906,37 @@ export const RunningApps = () => {
         );
       })()}
 
-      {/* Drill-in: frontends first, services below */}
+      {/* Drill-in: search bar, then frontends, then services */}
       {selectedGroup && drillGroup && (
         <>
+          {/* Container-name search across both Frontends and Services. */}
+          <div className="relative max-w-md">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--ink-muted)] pointer-events-none" />
+            <input
+              type="text"
+              value={drillSearch}
+              onChange={(e) => setDrillSearch(e.target.value)}
+              placeholder="Search containers…"
+              className="w-full h-10 pl-9 pr-3 rounded-xl bg-[var(--card)] border border-[var(--border)] text-sm text-[var(--ink)] placeholder:text-[var(--ink-muted)] focus:outline-none focus:border-[var(--ink)]/30 transition-colors"
+            />
+          </div>
+
           <GlassCard className="p-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-base font-semibold text-[var(--ink)]">Frontends</h3>
               <span className="text-xs text-[var(--ink-muted)]">
-                {drillSplit.frontends.length} with published ports
+                {drillSearch
+                  ? `${drillSplitFiltered.frontends.length} of ${drillSplit.frontends.length} matching`
+                  : `${drillSplit.frontends.length} with published ports`}
               </span>
             </div>
             {drillSplit.frontends.length === 0 ? (
               <p className="text-sm text-[var(--ink-muted)]">No containers with published ports.</p>
+            ) : drillSplitFiltered.frontends.length === 0 ? (
+              <p className="text-sm text-[var(--ink-muted)]">No frontends match "{drillSearch}".</p>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-                {drillSplit.frontends.map(({ c, project }) => (
+                {drillSplitFiltered.frontends.map(({ c, project }) => (
                   <ContainerRow key={c.id} c={c} projectName={project} />
                 ))}
               </div>
@@ -931,15 +958,19 @@ export const RunningApps = () => {
                 <h3 className="text-base font-semibold text-[var(--ink)]">Services</h3>
               </div>
               <span className="text-xs text-[var(--ink-muted)]">
-                {drillSplit.services.length} without published ports
+                {drillSearch
+                  ? `${drillSplitFiltered.services.length} of ${drillSplit.services.length} matching`
+                  : `${drillSplit.services.length} without published ports`}
               </span>
             </button>
             {servicesOpen && (
               drillSplit.services.length === 0 ? (
                 <p className="text-sm text-[var(--ink-muted)]">No background services.</p>
+              ) : drillSplitFiltered.services.length === 0 ? (
+                <p className="text-sm text-[var(--ink-muted)]">No services match "{drillSearch}".</p>
               ) : (
                 <div id="services-list" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-                  {drillSplit.services.map(({ c, project }) => (
+                  {drillSplitFiltered.services.map(({ c, project }) => (
                     <ContainerRow key={c.id} c={c} projectName={project} />
                   ))}
                 </div>
