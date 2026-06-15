@@ -1,8 +1,8 @@
-import { Settings, Database, ShieldCheck, Rocket } from 'lucide-react';
+import { Settings, Database, ShieldCheck, Rocket, BookOpen } from 'lucide-react';
 // TODO(applications): re-import `FolderKanban` when the Applications tab is re-enabled.
 import type { LucideIcon } from 'lucide-react';
 
-export type FolderView = 'applications' | 'database-dump' | 'security-scan' | 'running-apps' | 'config';
+export type FolderView = 'applications' | 'database-dump' | 'security-scan' | 'running-apps' | 'wiki' | 'config';
 
 interface FolderDef {
   id: FolderView;
@@ -20,6 +20,7 @@ const FOLDERS: FolderDef[] = [
   // { id: 'applications', label: 'Applications', icon: FolderKanban, color: 'var(--tab-apps)' },
   { id: 'running-apps', label: 'Running Apps', icon: Rocket, color: 'var(--tab-running)' },
   { id: 'security-scan', label: 'Security Scan', icon: ShieldCheck, color: 'var(--tab-scan)' },
+  { id: 'wiki', label: 'Dev Wiki', icon: BookOpen, color: 'var(--tab-wiki)' },
   { id: 'config', label: 'Config', icon: Settings, color: 'var(--tab-users)', adminOnly: true },
 ];
 
@@ -53,7 +54,7 @@ export function FolderTabs({ active, onNavigate, isAdmin }: FolderTabsProps) {
               // Physically overlap: each tab's right tail tucks under the next.
               marginRight: i === folders.length - 1 ? 0 : '-30px',
             } as any}
-            className={`folder-tab flex w-44 sm:w-52 md:w-60 lg:w-72 shrink-0 items-center justify-start gap-2 md:gap-3 whitespace-nowrap pl-4 pr-8 md:pl-7 md:pr-16 text-sm md:text-base lg:text-lg focus:outline-none transition-all duration-200 ease-in-out ${
+            className={`folder-tab flex w-44 sm:w-52 md:w-60 lg:w-72 shrink-0 items-center justify-start gap-2 md:gap-3 whitespace-nowrap pl-4 pr-8 md:pl-7 md:pr-16 text-sm md:text-base lg:text-lg focus:outline-none transition-[padding-top,color,background-color] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] ${
               isActive
                 // Active: heavy editorial serif, high-contrast ink, tallest box.
                 ? 'pt-7 md:pt-9 lg:pt-10 pb-4 md:pb-5 font-display font-bold text-[var(--ink)]'

@@ -11,7 +11,7 @@ function Textarea({ className, ...props }: React.ComponentProps<"textarea">) {
         "bg-[color-mix(in_srgb,var(--ink)_5%,transparent)] border border-[var(--border)] backdrop-blur-md",
         "text-[var(--ink)] placeholder:text-[var(--ink-muted)]",
         "resize-none field-sizing-content",
-        "transition-[border-color,background,box-shadow] outline-none",
+        "transition-[border-color,background-color] duration-150 ease-[cubic-bezier(0.4,0,0.2,1)] outline-none",
         "hover:bg-black/8",
         "focus-visible:bg-[var(--card)] focus-visible:border-[var(--accent-cyan)] focus-visible:shadow-[0_0_0_3px_color-mix(in_srgb,var(--accent-cyan)_25%,transparent)]",
         "disabled:cursor-not-allowed disabled:opacity-50",

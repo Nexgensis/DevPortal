@@ -123,7 +123,7 @@ function AlertDialogDescription({
 }
 
 const baseActionClasses =
-  "inline-flex items-center justify-center gap-2 h-10 px-4 rounded-xl text-sm font-medium transition-all focus-ring-cyan disabled:opacity-60 disabled:cursor-not-allowed";
+  "inline-flex items-center justify-center gap-2 h-10 px-4 rounded-xl text-sm font-medium transition-[background-color,color,opacity] duration-150 ease-[cubic-bezier(0.4,0,0.2,1)] focus-ring-cyan disabled:opacity-60 disabled:cursor-not-allowed";
 
 function AlertDialogAction({
   className,

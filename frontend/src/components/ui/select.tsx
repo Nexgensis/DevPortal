@@ -44,7 +44,7 @@ function SelectTrigger({
         "flex w-full items-center justify-between gap-2 rounded-xl px-3.5 py-2 text-sm whitespace-nowrap",
         "bg-[color-mix(in_srgb,var(--ink)_5%,transparent)] border border-[var(--border)] backdrop-blur-md text-[var(--ink)]",
         "data-[placeholder]:text-[var(--ink-muted)] [&_svg:not([class*='text-'])]:text-[var(--ink-muted)]",
-        "transition-[border-color,background,box-shadow] outline-none",
+        "transition-[border-color,background-color] duration-150 ease-[cubic-bezier(0.4,0,0.2,1)] outline-none",
         "hover:bg-black/8",
         "focus-visible:bg-[var(--card)] focus-visible:border-[var(--accent-cyan)] focus-visible:shadow-[0_0_0_3px_color-mix(in_srgb,var(--accent-cyan)_25%,transparent)]",
         "aria-invalid:border-[var(--accent-destructive)] aria-invalid:shadow-[0_0_0_3px_color-mix(in_srgb,var(--accent-destructive)_20%,transparent)]",

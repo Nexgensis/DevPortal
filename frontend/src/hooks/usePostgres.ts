@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { PostgresContainer, PostgresDatabase, PostgresDumpRequest, PostgresCredential, PostgresCredentialInput } from '../types/postgres';
+import { PostgresContainer, PostgresDatabase, PostgresDumpRequest, PostgresCredential, PostgresCredentialInput, PostgresContainerContext } from '../types/postgres';
 import { toast } from 'sonner';
 
 const API_BASE = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_URL)
@@ -223,6 +223,90 @@ export const usePostgres = () => {
     }
   };
 
+  // restoreDump uploads a .sql / .sql.gz dump file and asks the server to
+  // create a fresh database `targetDatabase` from it. `onProgress` reports the
+  // upload phase (XHR is used instead of fetch because fetch can't surface
+  // upload byte progress). Once upload finishes, the server runs createdb +
+  // psql synchronously and returns the result — the UI should show a
+  // "Restoring…" spinner during that gap.
+  const restoreDump = async (
+    payload: {
+      serverId: string;
+      containerId: string;
+      containerName?: string;
+      targetDatabase: string;
+      file: File;
+    },
+    opts?: { onProgress?: (uploaded: number, total: number) => void },
+  ): Promise<{ targetDatabase: string; bytesRestored: number }> => {
+    setLoading(true);
+    setError(null);
+    try {
+      const token = getAuthToken();
+      const form = new FormData();
+      form.append('server_id', payload.serverId);
+      form.append('container_id', payload.containerId);
+      if (payload.containerName) form.append('container_name', payload.containerName);
+      form.append('target_database', payload.targetDatabase);
+      form.append('dump_file', payload.file);
+
+      const result = await new Promise<{ targetDatabase: string; bytesRestored: number }>(
+        (resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          xhr.open('POST', `${API_BASE}/postgres/restore`);
+          xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+          // Intentionally NOT setting Content-Type — the browser must compute
+          // the multipart boundary header from the FormData body.
+
+          xhr.upload.onprogress = (event) => {
+            if (event.lengthComputable && opts?.onProgress) {
+              opts.onProgress(event.loaded, event.total);
+            }
+          };
+
+          xhr.onload = () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+              try {
+                const data = JSON.parse(xhr.responseText);
+                resolve({
+                  targetDatabase: data.target_database,
+                  bytesRestored: data.bytes_restored ?? 0,
+                });
+              } catch {
+                reject(new Error('Invalid response from server'));
+              }
+            } else {
+              // Surface the structured error message when the server sends one
+              // (e.g. "Database 'qms' already exists — pick a different target…").
+              let msg = `Restore failed (HTTP ${xhr.status})`;
+              try {
+                const data = JSON.parse(xhr.responseText);
+                if (data.error) msg = data.error;
+              } catch {
+                /* non-JSON body — keep the generic status message */
+              }
+              reject(new Error(msg));
+            }
+          };
+
+          xhr.onerror = () => reject(new Error('Network error during restore upload'));
+          xhr.onabort = () => reject(new Error('Restore upload aborted'));
+          xhr.send(form);
+        },
+      );
+
+      toast.success(`Database "${result.targetDatabase}" restored.`);
+      return result;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to restore database';
+      setError(message);
+      toast.error(message);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const deleteCredential = async (serverId: string, containerName: string): Promise<boolean> => {
     setLoading(true);
     try {
@@ -249,15 +333,43 @@ export const usePostgres = () => {
     }
   };
 
+  // getContainerContext returns the compose-project context for a postgres
+  // container — siblings, ports, domains, and the inferred "live" databases.
+  // Best-effort: returns null on any failure so the UI can hide the strip
+  // without spamming toasts.
+  const getContainerContext = async (
+    serverId: string,
+    containerId: string,
+  ): Promise<PostgresContainerContext | null> => {
+    try {
+      const token = getAuthToken();
+      const response = await fetch(
+        `${API_BASE}/servers/${serverId}/postgres/containers/${containerId}/context`,
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        },
+      );
+      if (!response.ok) return null;
+      return await response.json();
+    } catch {
+      return null;
+    }
+  };
+
   return {
     loading,
     error,
     getContainers,
     getDatabases,
     createDump,
+    restoreDump,
     testConnection,
     getCredentials,
     saveCredential,
     deleteCredential,
+    getContainerContext,
   };
 };

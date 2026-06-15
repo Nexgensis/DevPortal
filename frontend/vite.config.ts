@@ -72,6 +72,13 @@
           target: process.env.VITE_DEV_API_PROXY || 'http://localhost:8080',
           changeOrigin: true,
         },
+        // Wiki image uploads land at /uploads/wiki/<file> served by the
+        // backend's static handler. Mirror the /api proxy so <img src="/uploads/…">
+        // works in the dev SPA without hardcoding the backend port.
+        '/uploads': {
+          target: process.env.VITE_DEV_API_PROXY || 'http://localhost:8080',
+          changeOrigin: true,
+        },
       },
     },
   });

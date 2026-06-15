@@ -13,7 +13,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from './ui/alert-dialog';
-import { Users, Plus, Trash2, User as UserIcon, ChevronDown, Shield, Power } from 'lucide-react';
+import { Users, Plus, Trash2, User as UserIcon, ChevronDown, Shield, Power, Search } from 'lucide-react';
 import { User } from '../types/app';
 import { PillTag } from './ui/pill-tag';
 import { StatusBadge } from './ui/status-badge';
@@ -111,6 +111,18 @@ export function UserManagement() {
     fullName: '',
     password: '',
     role: 'user',
+  });
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // Case-insensitive match across username, fullName, and email.
+  const filteredUsers = users.filter((u) => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return true;
+    return (
+      u.username.toLowerCase().includes(q) ||
+      (u.fullName ?? '').toLowerCase().includes(q) ||
+      u.email.toLowerCase().includes(q)
+    );
   });
 
 
@@ -287,6 +299,20 @@ export function UserManagement() {
         </Dialog>
       </div>
 
+      {/* Search */}
+      {users.length > 0 && (
+        <div className="relative mb-6 max-w-md">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 dark:text-zinc-500 pointer-events-none" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search users by name or email…"
+            className="w-full h-10 pl-9 pr-3 rounded-xl bg-white dark:bg-zinc-900 border border-gray-200/80 dark:border-zinc-800 text-sm text-gray-900 dark:text-zinc-100 placeholder:text-gray-400 dark:placeholder:text-zinc-500 focus:outline-none focus:border-gray-300 dark:focus:border-zinc-700 transition-colors"
+          />
+        </div>
+      )}
+
       {/* Body */}
       {isLoading ? (
         <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-8 lg:gap-10">
@@ -300,9 +326,13 @@ export function UserManagement() {
           <h3 className="mb-2 text-lg font-semibold text-gray-900 dark:text-zinc-100">No Users Available</h3>
           <p className="text-gray-500 dark:text-zinc-400 mb-4 max-w-md mx-auto">Click "Add User" to create your first user.</p>
         </div>
+      ) : filteredUsers.length === 0 ? (
+        <div className="text-center py-12 px-4 rounded-2xl border border-dashed border-gray-200 dark:border-zinc-800 text-sm text-gray-500 dark:text-zinc-400">
+          No users match "{searchQuery}".
+        </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
-          {users.map((user) => (
+          {filteredUsers.map((user) => (
             <UserCard
               key={user.id}
               user={user}

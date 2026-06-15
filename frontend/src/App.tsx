@@ -14,6 +14,7 @@ import { AuthCallback } from './components/AuthCallback';
 import { PostgresManager } from './components/PostgresManager';
 import { SecurityScanReport } from './components/SecurityScanReport';
 import { RunningApps } from './components/RunningApps';
+import { Wiki } from './components/Wiki';
 import { Badge } from './components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './components/ui/tabs';
 import { Plus, Activity, FolderKanban, Search, Server as ServerIcon, Zap, Clock, LogOut, Shield, Sun, Moon, Users as UsersIcon, FileText, ShieldCheck } from 'lucide-react';
@@ -26,11 +27,12 @@ import { AccentButton } from './components/ui/accent-button';
 
 // Per-view editorial header copy — each folder tab gets its own big serif title
 // + muted subtitle at the top of the workspace (keyed by activeView).
-const VIEW_META: Record<'applications' | 'config' | 'database-dump' | 'security-scan' | 'running-apps', { title: string; subtitle: string }> = {
+const VIEW_META: Record<'applications' | 'config' | 'database-dump' | 'security-scan' | 'running-apps' | 'wiki', { title: string; subtitle: string }> = {
   'database-dump': { title: 'Database Dump', subtitle: 'Dump and download PostgreSQL databases from containers' },
   applications: { title: 'Applications', subtitle: 'Deploy and manage your Docker Compose applications' },
   'running-apps': { title: 'Running Apps', subtitle: 'Live view of compose projects and their frontend URLs per server' },
   'security-scan': { title: 'Security Scan Report', subtitle: 'Latest CI/CD security scan reports per repository and branch' },
+  wiki: { title: 'Developer Wiki', subtitle: 'Onboarding guides, git workflow, deployment notes, and team knowledge' },
   config: { title: 'Configuration', subtitle: 'Servers, users, and system activity' },
 };
 
@@ -52,7 +54,7 @@ export default function App() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingApp, setEditingApp] = useState<App | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeView, setActiveView] = useState<'applications' | 'config' | 'database-dump' | 'security-scan' | 'running-apps'>('database-dump');
+  const [activeView, setActiveView] = useState<'applications' | 'config' | 'database-dump' | 'security-scan' | 'running-apps' | 'wiki'>('database-dump');
   const [configTab, setConfigTab] = useState<ConfigTab>('infrastructure');
   const [serverDialogTrigger, setServerDialogTrigger] = useState(0);
   const [projectDialogTrigger, setProjectDialogTrigger] = useState(0);
@@ -208,7 +210,7 @@ export default function App() {
       <div className="relative z-10 flex-1 min-h-0 flex flex-col px-4 pb-4">
         <FolderTabs active={activeView} onNavigate={setActiveView} isAdmin={isAdmin} />
         <main className="folder-paper relative z-10 -mt-px flex-1 min-h-0 rounded-tr-[28px] rounded-b-[28px] border border-[var(--border)] overflow-auto">
-          <div className="p-8 max-w-[1600px] mx-auto">
+          <div className="px-10 py-8">
           {/* Per-view editorial header — big serif title + muted subtitle for the active tab. */}
           <div className="mb-8">
             <h1 className="font-display text-4xl font-bold tracking-tight text-[var(--ink)]">
@@ -411,6 +413,10 @@ export default function App() {
 
           {activeView === 'running-apps' && (
             <RunningApps />
+          )}
+
+          {activeView === 'wiki' && (
+            <Wiki />
           )}
           </div>
         </main>

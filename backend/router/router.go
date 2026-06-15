@@ -1,6 +1,8 @@
 package router
 
 import (
+    "os"
+
     "backend/controllers"
     "backend/middleware"
     "github.com/gin-contrib/cors"
@@ -23,6 +25,14 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
     // Public auth routes (login - no JWT required)
     r.POST("/api/auth/login", controllers.Login(db))
     r.POST("/api/auth/register", controllers.Register(db))
+
+    // Static file server for wiki image uploads. Served unauthenticated so
+    // <img src=> tags work for any reader (including the prod nginx that
+    // proxies the SPA). Files land here from the auth-only POST /api/wiki/upload.
+    // Pre-create the dir so gin.Static doesn't 404 every request before the
+    // first upload happens.
+    _ = os.MkdirAll("uploads/wiki", 0o755)
+    r.Static("/uploads/wiki", "./uploads/wiki")
     
     // SSO routes
     r.GET("/api/auth/microsoft", controllers.MicrosoftLogin(db))
@@ -50,8 +60,14 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
     // PostgreSQL routes - available to all authenticated users
     auth.GET("/servers/:id/postgres/containers", controllers.GetPostgresContainers(db))
     auth.GET("/servers/:id/postgres/containers/:container_id/databases", controllers.GetPostgresDatabases(db))
+    // Context — what compose project does this postgres container belong to,
+    // which sibling containers use it, and which database is the live one?
+    auth.GET("/servers/:id/postgres/containers/:container_id/context", controllers.GetPostgresContainerContext(db))
     auth.POST("/servers/:id/postgres/containers/:container_id/test", controllers.TestPostgresConnection(db))
     auth.POST("/postgres/dump", controllers.CreatePostgresDump(db))
+    // Aggregate metrics for the Database Dump page (most-dumped, top users,
+    // totals, trend). Reads audit_logs; no Docker calls.
+    auth.GET("/postgres/dump-stats", controllers.GetDumpStats(db))
     // Per-container PostgreSQL credentials — read for any authenticated user
     // (passwords are never returned); mutations are admin-only (registered below).
     auth.GET("/servers/:id/postgres/credentials", controllers.ListPostgresCredentials(db))
@@ -67,6 +83,18 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
     // Running apps — live view of compose projects + their URLs per server.
     auth.GET("/servers/:id/running-apps", controllers.GetRunningApps(db))
 
+    // Wiki — developer-onboarding posts (Hashnode-style). Read is open to any
+    // authenticated user; write/delete is gated to admins OR the post's author
+    // (the controller does the per-post author check).
+    auth.GET("/wiki", controllers.ListWikiPosts(db))
+    auth.GET("/wiki/:key", controllers.GetWikiPost(db))           // slug or UUID
+    auth.POST("/wiki", controllers.CreateWikiPost(db))             // any authed user can author
+    auth.PUT("/wiki/:id", controllers.UpdateWikiPost(db))          // author or admin (enforced inside)
+    auth.DELETE("/wiki/:id", controllers.DeleteWikiPost(db))       // author or admin (enforced inside)
+    // Image upload — any authed user. Returns a relative URL pointing at the
+    // static handler registered below (/uploads/wiki/<filename>).
+    auth.POST("/wiki/upload", controllers.UploadWikiImage(db))
+
     // Admin routes - only admins can modify servers, projects, apps
     admin := auth.Group("/")
     admin.Use(middleware.Admin())
@@ -78,6 +106,10 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
     // PostgreSQL credential mutations (admin only)
     admin.PUT("/servers/:id/postgres/credentials", controllers.UpsertPostgresCredential(db))
     admin.DELETE("/servers/:id/postgres/credentials/:container_name", controllers.DeletePostgresCredential(db))
+
+    // PostgreSQL restore — admin-only since it creates new databases on the
+    // container. Multipart upload; refuses if target_database already exists.
+    admin.POST("/postgres/restore", controllers.RestorePostgresDump(db))
 
     // Security scan report sources (admin only)
     admin.POST("/scan-reports", controllers.CreateScanReport(db))

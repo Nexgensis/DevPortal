@@ -2,8 +2,9 @@ import { useState, useEffect } from 'react';
 import { usePostgres } from '../hooks/usePostgres';
 import { useServers } from '../hooks/useServers';
 import { useServerStats } from '../hooks/useServerStats';
-import { PostgresContainer, PostgresDatabase, PostgresCredential } from '../types/postgres';
-import { Database, Download, Server, Container, ChevronRight, KeyRound, Eye, EyeOff } from 'lucide-react';
+import { useAuth } from '../hooks/useAuth';
+import { PostgresContainer, PostgresDatabase, PostgresCredential, PostgresContainerContext } from '../types/postgres';
+import { Database, Download, Server, Container, ChevronRight, KeyRound, Eye, EyeOff, Search, Upload, FileUp, AlertCircle, FolderOpen, Globe, Cog, Box, Sparkles } from 'lucide-react';
 import { ScrollArea } from './ui/scroll-area';
 import { GlassCard } from './ui/glass-card';
 import { AccentButton } from './ui/accent-button';
@@ -11,6 +12,8 @@ import { GlassSkeleton } from './ui/glass-skeleton';
 import { StatusBadge } from './ui/status-badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from './ui/dialog';
 import { ServerPickerCard } from './ui/server-picker-card';
+import { DumpStatsStrip } from './DumpStatsStrip';
+import { useDumpStats } from '../hooks/useDumpStats';
 
 // parseContainerStatus splits Docker's "Up X minutes (healthy)" into a concise
 // duration label + a health flag the sidebar can render as a colored dot.
@@ -77,7 +80,9 @@ interface DumpProgress {
 export const PostgresManager = () => {
   const { servers, isLoading: serversLoading } = useServers();
   const serverStats = useServerStats(servers);
-  const { getContainers, getDatabases, createDump, getCredentials, saveCredential, deleteCredential, loading } = usePostgres();
+  const { getContainers, getDatabases, createDump, restoreDump, getCredentials, saveCredential, deleteCredential, getContainerContext, loading } = usePostgres();
+  const { isAdmin } = useAuth();
+  const { data: dumpStats, loading: dumpStatsLoading, reload: reloadDumpStats } = useDumpStats();
 
   const [selectedServer, setSelectedServer] = useState<string>('');
   const [containers, setContainers] = useState<PostgresContainer[]>([]);
@@ -87,6 +92,33 @@ export const PostgresManager = () => {
   const [loadingDatabases, setLoadingDatabases] = useState(false);
   const [dumpingDatabase, setDumpingDatabase] = useState<string | null>(null);
   const [dumpProgress, setDumpProgress] = useState<DumpProgress | null>(null);
+
+  // Restore flow state — admin-only dialog. Stages: idle → uploading → restoring
+  // → success | error. uploading drives the progress bar; restoring is the gap
+  // between upload finish and server response (no progress, just a spinner).
+  const [restoreOpen, setRestoreOpen] = useState(false);
+  const [restoreFile, setRestoreFile] = useState<File | null>(null);
+  const [restoreTarget, setRestoreTarget] = useState('');
+  const [restoreStage, setRestoreStage] = useState<'idle' | 'uploading' | 'restoring' | 'success' | 'error'>('idle');
+  const [restoreProgress, setRestoreProgress] = useState<{ uploaded: number; total: number } | null>(null);
+  const [restoreError, setRestoreError] = useState<string | null>(null);
+
+  // Search filters — case-insensitive substring match on the visible name.
+  const [containerSearch, setContainerSearch] = useState('');
+  const [databaseSearch, setDatabaseSearch] = useState('');
+  const filteredContainers = containers.filter((c) => {
+    const q = containerSearch.trim().toLowerCase();
+    return !q || c.name.toLowerCase().includes(q);
+  });
+  const filteredDatabases = databases.filter((d) => {
+    const q = databaseSearch.trim().toLowerCase();
+    return !q || d.name.toLowerCase().includes(q) || (d.owner ?? '').toLowerCase().includes(q);
+  });
+
+  // Compose-project context for the selected postgres container — which app
+  // uses it, which DB is live, project path, etc. Null while loading or when
+  // the container isn't compose-managed; renders the context strip when set.
+  const [containerContext, setContainerContext] = useState<PostgresContainerContext | null>(null);
 
   // Admin-configured per-container credentials (used for hardened images that
   // removed the default "postgres" role). Keyed by container name.
@@ -106,6 +138,10 @@ export const PostgresManager = () => {
   useEffect(() => {
     if (selectedServer && selectedContainer) {
       loadDatabases();
+      // Fetch the compose-project context in parallel — independent fetch so
+      // the database grid never waits on the context call.
+      setContainerContext(null);
+      getContainerContext(selectedServer, selectedContainer).then(setContainerContext);
     }
   }, [selectedContainer]);
 
@@ -190,6 +226,10 @@ export const PostgresManager = () => {
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
+      // A successful dump bumps every aggregate (most-dumped, top users,
+      // monthly total, today's trend bucket) — refresh the strip in the
+      // background so the next render reflects it.
+      reloadDumpStats();
     } catch (error) {
       console.error('Failed to create dump:', error);
     } finally {
@@ -200,6 +240,70 @@ export const PostgresManager = () => {
 
   const selectedContainerData = containers.find((c) => c.id === selectedContainer);
   const currentCred = credentials.find((c) => c.containerName === selectedContainerData?.name);
+
+  // Wipe the restore form back to a clean idle state (used on close and on
+  // success after a short delay).
+  const resetRestoreForm = () => {
+    setRestoreFile(null);
+    setRestoreTarget('');
+    setRestoreStage('idle');
+    setRestoreProgress(null);
+    setRestoreError(null);
+  };
+
+  // Suggest a safe target name from the picked filename so users get a sensible
+  // default that doesn't clash. Our dumps are formatted "<dbname>-<timestamp>.sql"
+  // (see CreatePostgresDump controller) — strip extension, take the part before
+  // the first "-", and append "_restored".
+  const suggestTargetName = (filename: string): string => {
+    const stem = filename.replace(/\.(sql\.gz|sql|gz)$/i, '');
+    const dbPart = stem.split('-')[0];
+    return dbPart ? `${dbPart}_restored` : '';
+  };
+
+  const handleRestoreFilePick = (file: File | null) => {
+    setRestoreFile(file);
+    setRestoreError(null);
+    if (file && !restoreTarget) {
+      setRestoreTarget(suggestTargetName(file.name));
+    }
+  };
+
+  const handleRestoreSubmit = async () => {
+    if (!restoreFile || !restoreTarget.trim() || !selectedServer || !selectedContainer) return;
+    setRestoreStage('uploading');
+    setRestoreProgress({ uploaded: 0, total: restoreFile.size });
+    setRestoreError(null);
+    try {
+      await restoreDump(
+        {
+          serverId: selectedServer,
+          containerId: selectedContainer,
+          containerName: selectedContainerData?.name,
+          targetDatabase: restoreTarget.trim(),
+          file: restoreFile,
+        },
+        {
+          onProgress: (uploaded, total) => {
+            setRestoreProgress({ uploaded, total });
+            // Upload phase done — server is now running createdb + psql.
+            if (uploaded >= total) setRestoreStage('restoring');
+          },
+        },
+      );
+      setRestoreStage('success');
+      // Refresh the database grid so the freshly-restored DB shows up.
+      await loadDatabases();
+      // Auto-close after a short pause so the success state is visible.
+      setTimeout(() => {
+        setRestoreOpen(false);
+        resetRestoreForm();
+      }, 1400);
+    } catch (err) {
+      setRestoreStage('error');
+      setRestoreError(err instanceof Error ? err.message : 'Restore failed');
+    }
+  };
 
   // Sync the credential form to the selected container. Password stays blank
   // (write-only); `hasPassword` on currentCred indicates a stored secret.
@@ -261,6 +365,12 @@ export const PostgresManager = () => {
 
   return (
     <div className="space-y-6">
+      {/* Aggregate insights — shown on the landing/picker view only so the
+          working view stays focused. Hidden while drilled into a server. */}
+      {!selectedServer && (
+        <DumpStatsStrip stats={dumpStats} loading={dumpStatsLoading} />
+      )}
+
       {/* Server Selection — cards */}
       {!selectedServer && (
         <GlassCard>
@@ -321,8 +431,23 @@ export const PostgresManager = () => {
           {/* Split Pane Content */}
           <div className="flex h-[600px]">
             {/* Left Sidebar - Container List */}
-            <div className="w-80 border-r border-[var(--border)] bg-[var(--card-warm)]">
-              <ScrollArea className="h-full">
+            <div className="w-80 border-r border-[var(--border)] bg-[var(--card-warm)] flex flex-col min-h-0">
+              {/* Sticky search header (hidden until containers loaded). */}
+              {containers.length > 0 && (
+                <div className="p-2 border-b border-[var(--border)] shrink-0">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--ink-muted)] pointer-events-none" />
+                    <input
+                      type="text"
+                      value={containerSearch}
+                      onChange={(e) => setContainerSearch(e.target.value)}
+                      placeholder="Search containers…"
+                      className="w-full h-9 pl-9 pr-3 rounded-lg bg-[var(--card)] border border-[var(--border)] text-sm text-[var(--ink)] placeholder:text-[var(--ink-muted)] focus:outline-none focus:border-[var(--ink)]/30 transition-colors"
+                    />
+                  </div>
+                </div>
+              )}
+              <ScrollArea className="flex-1 min-h-0">
                 <div className="p-2">
                   {loadingContainers ? (
                     <div className="p-2 space-y-2">
@@ -333,8 +458,12 @@ export const PostgresManager = () => {
                       <Container className="h-12 w-12 text-[var(--ink-muted)] mx-auto mb-3" />
                       <p className="text-sm text-[var(--ink-muted)]">No containers found</p>
                     </div>
+                  ) : filteredContainers.length === 0 ? (
+                    <div className="text-center py-10 px-4 text-sm text-[var(--ink-muted)]">
+                      No containers match "{containerSearch}".
+                    </div>
                   ) : (
-                    containers.map((container) => {
+                    filteredContainers.map((container) => {
                       const isSelected = selectedContainer === container.id;
                       const { duration, health } = parseContainerStatus(container.status);
                       const hasCustomCred = credentials.some((c: PostgresCredential) => c.containerName === container.name);
@@ -348,7 +477,7 @@ export const PostgresManager = () => {
                             setDatabases([]);
                             setSelectedContainer(container.id);
                           }}
-                          className="w-full text-left p-2.5 rounded-xl mb-1 transition-all relative focus-ring-cyan flex items-center gap-3 border"
+                          className="w-full text-left p-2.5 rounded-xl mb-1 transition-[background-color,border-color,color] duration-150 ease-[cubic-bezier(0.4,0,0.2,1)] relative focus-ring-cyan flex items-center gap-3 border"
                           style={{
                             // Indigo-tinted selected state matches the card identity.
                             background: isSelected ? 'rgba(91, 77, 255, 0.10)' : 'transparent',
@@ -422,18 +551,105 @@ export const PostgresManager = () => {
                           <h3 className="mb-1 text-lg font-semibold text-[var(--ink)]">{selectedContainerData.name}</h3>
                           <p className="text-sm text-[var(--ink-muted)]">PostgreSQL databases inside this container</p>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => setCredExpanded((v) => !v)}
-                          className="flex items-center gap-2 h-9 px-3 rounded-[var(--radius)] border border-[var(--border)] text-sm text-[var(--ink)] hover:bg-black/[0.03] transition-colors focus:outline-none shrink-0"
-                        >
-                          <KeyRound className="h-4 w-4 text-[var(--ink-muted)]" />
-                          Credentials
-                          {currentCred && (
-                            <span className="h-1.5 w-1.5 rounded-full bg-[var(--accent-green)]" title="Custom credentials configured" />
+                        <div className="flex items-center gap-2 shrink-0">
+                          {/* Restore — admin-only; creates a NEW database with a user-chosen name. */}
+                          {isAdmin && (
+                            <button
+                              type="button"
+                              onClick={() => { resetRestoreForm(); setRestoreOpen(true); }}
+                              className="flex items-center gap-2 h-9 px-3 rounded-[var(--radius)] border border-[var(--border)] text-sm text-[var(--ink)] hover:bg-black/[0.03] transition-colors focus:outline-none"
+                              title="Restore a dump into a new database"
+                            >
+                              <Upload className="h-4 w-4 text-[var(--ink-muted)]" />
+                              Restore
+                            </button>
                           )}
-                        </button>
+                          <button
+                            type="button"
+                            onClick={() => setCredExpanded((v) => !v)}
+                            className="flex items-center gap-2 h-9 px-3 rounded-[var(--radius)] border border-[var(--border)] text-sm text-[var(--ink)] hover:bg-black/[0.03] transition-colors focus:outline-none"
+                          >
+                            <KeyRound className="h-4 w-4 text-[var(--ink-muted)]" />
+                            Credentials
+                            {currentCred && (
+                              <span className="h-1.5 w-1.5 rounded-full bg-[var(--accent-green)]" title="Custom credentials configured" />
+                            )}
+                          </button>
+                        </div>
                       </div>
+
+                      {/* Context strip — project path + consumer apps + active-DB hints.
+                          Hidden when the container isn't compose-managed (hasProject=false). */}
+                      {containerContext?.hasProject && (
+                        <div className="bento-card p-4 mb-6">
+                          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 mb-3 text-sm">
+                            <div className="inline-flex items-center gap-1.5">
+                              <FolderOpen className="h-4 w-4 text-[var(--accent-pink)]" />
+                              <span className="text-[11px] uppercase tracking-wider font-bold text-[var(--ink-muted)]">Project</span>
+                            </div>
+                            <span className="font-semibold text-[var(--ink)]">{containerContext.project}</span>
+                            {containerContext.workingDir && (
+                              <span className="font-mono text-xs text-[var(--ink-muted)] truncate max-w-full" title={containerContext.workingDir}>
+                                {containerContext.workingDir}
+                              </span>
+                            )}
+                          </div>
+
+                          {(containerContext.consumers ?? []).length === 0 ? (
+                            <p className="text-xs text-[var(--ink-muted)] italic">
+                              No sibling containers detected in this compose project.
+                            </p>
+                          ) : (
+                            <div>
+                              <div className="text-[11px] uppercase tracking-wider font-bold text-[var(--ink-muted)] mb-2">Used by</div>
+                              <ul className="flex flex-col gap-1.5">
+                                {(containerContext.consumers ?? []).map((cn) => {
+                                  const KindIcon = cn.kind === 'frontend' ? Globe : cn.kind === 'backend' ? Cog : Box;
+                                  const serverAddr = servers.find((s) => s.id === selectedServer)?.address ?? '';
+                                  // Go marshals empty slices as JSON null, so ports/databases can arrive
+                                  // null despite the string[] type — normalize before any array access.
+                                  const ports = cn.ports ?? [];
+                                  const databases = cn.databases ?? [];
+                                  const firstPort = ports[0];
+                                  const url = cn.domain
+                                    ? `https://${cn.domain}`
+                                    : (firstPort ? `http://${serverAddr}:${firstPort}` : null);
+                                  return (
+                                    <li key={cn.id} className="flex items-center flex-wrap gap-x-2 gap-y-1 text-sm">
+                                      <KindIcon className="h-3.5 w-3.5 text-[var(--ink-muted)] shrink-0" />
+                                      <span className="font-medium text-[var(--ink)] truncate" title={cn.name}>{cn.name}</span>
+                                      <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--ink-muted)] px-1.5 py-0.5 rounded bg-[var(--card-warm,rgba(0,0,0,0.04))]">{cn.kind}</span>
+                                      {ports.length > 0 && (
+                                        <span className="text-xs text-[var(--ink-muted)] font-mono">:{ports.join(', :')}</span>
+                                      )}
+                                      {url && (
+                                        cn.domain ? (
+                                          <a href={url} target="_blank" rel="noreferrer noopener" className="text-xs text-[var(--accent-pink)] hover:underline truncate" title={url}>
+                                            {cn.domain}
+                                          </a>
+                                        ) : (
+                                          <span className="text-xs text-[var(--ink-muted)] font-mono truncate" title={url}>{url}</span>
+                                        )
+                                      )}
+                                      {databases.length > 0 && (
+                                        <span className="inline-flex items-center gap-1 text-xs text-[var(--ink)]">
+                                          <Database className="h-3 w-3 text-[var(--accent-pink)]" />
+                                          <span className="font-mono font-semibold">{databases.join(', ')}</span>
+                                          {cn.envSource && (
+                                            <span className="text-[10px] text-[var(--ink-muted)]" title={`Inferred from ${cn.envSource}`}>
+                                              ({cn.envSource})
+                                            </span>
+                                          )}
+                                        </span>
+                                      )}
+                                    </li>
+                                  );
+                                })}
+                              </ul>
+                            </div>
+                          )}
+                        </div>
+                      )}
 
                       {/* DB Credentials dialog — explicit user / password / maintenance DB
                           for hardened containers without the default "postgres" role.
@@ -526,6 +742,177 @@ export const PostgresManager = () => {
                         </DialogContent>
                       </Dialog>
 
+                      {/* Restore Dialog — admin only. Creates a fresh database from an uploaded
+                          .sql / .sql.gz dump. Refuses if target name already exists (server-side
+                          409) so live databases are never silently overwritten. */}
+                      <Dialog
+                        open={restoreOpen}
+                        onOpenChange={(open) => {
+                          // Block close while upload/restore is in flight so the user can't
+                          // accidentally orphan a half-uploaded transfer.
+                          if (!open && (restoreStage === 'uploading' || restoreStage === 'restoring')) return;
+                          setRestoreOpen(open);
+                          if (!open) resetRestoreForm();
+                        }}
+                      >
+                        <DialogContent className="bento-card sm:max-w-[480px]">
+                          <DialogHeader>
+                            <DialogTitle>Restore Database</DialogTitle>
+                            <DialogDescription>
+                              Upload a <span className="font-mono text-[var(--ink)]">.sql</span> or <span className="font-mono text-[var(--ink)]">.sql.gz</span> dump and pick a name for the <strong>new</strong> database in <span className="font-medium text-[var(--ink)]">{selectedContainerData.name}</span>. If the target name already exists, the restore is refused — your live database is never touched.
+                            </DialogDescription>
+                          </DialogHeader>
+
+                          <div className="space-y-4">
+                            {/* File picker — clickable area with hidden input */}
+                            <div>
+                              <label htmlFor="restore-file" className="block text-xs font-medium text-[var(--ink-muted)] mb-1">
+                                Dump file
+                              </label>
+                              <label
+                                htmlFor="restore-file"
+                                className={`flex flex-col items-center justify-center gap-2 rounded-[var(--radius)] border-2 border-dashed px-4 py-6 cursor-pointer transition-colors ${
+                                  restoreFile
+                                    ? 'border-[var(--accent-pink)]/40 bg-[var(--accent-pink-soft)]'
+                                    : 'border-[var(--border)] hover:bg-black/[0.02]'
+                                } ${restoreStage === 'uploading' || restoreStage === 'restoring' ? 'pointer-events-none opacity-60' : ''}`}
+                              >
+                                {restoreFile ? (
+                                  <>
+                                    <FileUp className="h-6 w-6 text-[var(--accent-pink)]" />
+                                    <div className="text-center min-w-0">
+                                      <div className="text-sm font-medium text-[var(--ink)] truncate max-w-[20rem]">{restoreFile.name}</div>
+                                      <div className="text-xs text-[var(--ink-muted)] mt-0.5">{formatBytes(restoreFile.size)} · click to change</div>
+                                    </div>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Upload className="h-6 w-6 text-[var(--ink-muted)]" />
+                                    <div className="text-center">
+                                      <div className="text-sm text-[var(--ink)]">Click to pick a dump file</div>
+                                      <div className="text-xs text-[var(--ink-muted)] mt-0.5">.sql or .sql.gz — any size</div>
+                                    </div>
+                                  </>
+                                )}
+                                <input
+                                  id="restore-file"
+                                  type="file"
+                                  accept=".sql,.gz,.sql.gz,application/sql,application/gzip,application/x-gzip"
+                                  className="hidden"
+                                  disabled={restoreStage === 'uploading' || restoreStage === 'restoring'}
+                                  onChange={(e) => handleRestoreFilePick(e.target.files?.[0] ?? null)}
+                                />
+                              </label>
+                            </div>
+
+                            {/* Target database name */}
+                            <div>
+                              <label htmlFor="restore-target" className="block text-xs font-medium text-[var(--ink-muted)] mb-1">
+                                Target database name <span className="text-[var(--accent-destructive)]">*</span>
+                              </label>
+                              <input
+                                id="restore-target"
+                                type="text"
+                                value={restoreTarget}
+                                onChange={(e) => setRestoreTarget(e.target.value)}
+                                placeholder="e.g. qms_restored"
+                                spellCheck={false}
+                                autoCapitalize="off"
+                                autoCorrect="off"
+                                disabled={restoreStage === 'uploading' || restoreStage === 'restoring'}
+                                className="w-full h-9 px-3 text-sm text-[var(--ink)] bg-[var(--card)] border border-[var(--border)] rounded-[var(--radius)] placeholder:text-[var(--ink-muted)] focus:outline-none focus:border-[var(--ink)]/30 transition-colors disabled:opacity-60"
+                              />
+                              <p className="text-[11px] text-[var(--ink-muted)] mt-1">
+                                Letters, digits, underscore, hyphen. Must not exist on this container.
+                              </p>
+                            </div>
+
+                            {/* Progress / status banner */}
+                            {restoreStage === 'uploading' && restoreProgress && (
+                              <div>
+                                <div className="flex items-center justify-between mb-1.5 text-xs">
+                                  <span className="font-medium text-[var(--ink)]">Uploading…</span>
+                                  <span className="tabular-nums text-[var(--ink-muted)]">
+                                    {formatBytes(restoreProgress.uploaded)} / {formatBytes(restoreProgress.total)}
+                                    {' · '}
+                                    {Math.round((restoreProgress.uploaded / Math.max(1, restoreProgress.total)) * 100)}%
+                                  </span>
+                                </div>
+                                <div className="h-2 rounded-full overflow-hidden bg-[var(--card-warm)]">
+                                  <div
+                                    className="h-full w-full origin-left rounded-full transition-transform duration-150 ease-out"
+                                    style={{
+                                      transform: `scaleX(${Math.min(100, Math.round((restoreProgress.uploaded / Math.max(1, restoreProgress.total)) * 100)) / 100})`,
+                                      background: 'var(--accent-pink)',
+                                    }}
+                                  />
+                                </div>
+                              </div>
+                            )}
+                            {restoreStage === 'restoring' && (
+                              <div className="flex items-center gap-2 text-sm text-[var(--ink)]">
+                                <span className="h-4 w-4 rounded-full border-2 border-[var(--accent-pink)] border-r-transparent animate-spin" />
+                                <span>Restoring on server (running <span className="font-mono text-xs">psql</span>)…</span>
+                              </div>
+                            )}
+                            {restoreStage === 'success' && (
+                              <div className="flex items-start gap-2 rounded-[var(--radius)] border border-[color-mix(in_srgb,var(--accent-green)_30%,transparent)] bg-[var(--accent-green-soft)] px-3 py-2 text-sm text-[var(--ink)]">
+                                <Database className="h-4 w-4 mt-0.5 shrink-0 text-[var(--accent-green)]" />
+                                <span>Database <span className="font-mono">{restoreTarget}</span> restored.</span>
+                              </div>
+                            )}
+                            {restoreStage === 'error' && restoreError && (
+                              <div className="flex items-start gap-2 rounded-[var(--radius)] border border-[color-mix(in_srgb,var(--accent-destructive)_30%,transparent)] bg-[var(--accent-destructive-soft)] px-3 py-2 text-sm text-[var(--ink)]">
+                                <AlertCircle className="h-4 w-4 mt-0.5 shrink-0 text-[var(--accent-destructive)]" />
+                                <span>{restoreError}</span>
+                              </div>
+                            )}
+                          </div>
+
+                          <DialogFooter>
+                            <AccentButton
+                              variant="ghost"
+                              onClick={() => { setRestoreOpen(false); resetRestoreForm(); }}
+                              disabled={restoreStage === 'uploading' || restoreStage === 'restoring'}
+                            >
+                              {restoreStage === 'success' ? 'Close' : 'Cancel'}
+                            </AccentButton>
+                            <AccentButton
+                              variant="lime"
+                              onClick={handleRestoreSubmit}
+                              disabled={
+                                !restoreFile ||
+                                !restoreTarget.trim() ||
+                                restoreStage === 'uploading' ||
+                                restoreStage === 'restoring' ||
+                                restoreStage === 'success'
+                              }
+                            >
+                              {restoreStage === 'uploading' || restoreStage === 'restoring' ? (
+                                <span className="h-4 w-4 rounded-full border-2 border-current border-r-transparent animate-spin" />
+                              ) : (
+                                <Upload className="h-4 w-4" />
+                              )}
+                              Restore
+                            </AccentButton>
+                          </DialogFooter>
+                        </DialogContent>
+                      </Dialog>
+
+                      {/* Database search — hidden until databases load. */}
+                      {databases.length > 0 && (
+                        <div className="relative mb-5 max-w-md">
+                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--ink-muted)] pointer-events-none" />
+                          <input
+                            type="text"
+                            value={databaseSearch}
+                            onChange={(e) => setDatabaseSearch(e.target.value)}
+                            placeholder="Search databases by name or owner…"
+                            className="w-full h-10 pl-9 pr-3 rounded-xl bg-[var(--card)] border border-[var(--border)] text-sm text-[var(--ink)] placeholder:text-[var(--ink-muted)] focus:outline-none focus:border-[var(--ink)]/30 transition-colors"
+                          />
+                        </div>
+                      )}
+
                       {/* Database Grid */}
                       {loadingDatabases ? (
                         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -536,10 +923,17 @@ export const PostgresManager = () => {
                           <Database className="h-16 w-16 text-[var(--ink-muted)] mx-auto mb-4" />
                           <p className="text-[var(--ink-muted)]">No databases found in this container</p>
                         </div>
+                      ) : filteredDatabases.length === 0 ? (
+                        <div className="text-center py-12 text-sm text-[var(--ink-muted)]">
+                          No databases match "{databaseSearch}".
+                        </div>
                       ) : (
                         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-                          {databases.map((db) => {
+                          {filteredDatabases.map((db) => {
                             const isDumping = dumpingDatabase === db.name;
+                            // "Live" = this DB name appears in env vars of a sibling
+                            // app container, i.e. the one your app actually connects to.
+                            const isLive = containerContext?.activeDatabases?.includes(db.name) ?? false;
                             // Progress percentage only known when Content-Length is set;
                             // otherwise we render an indeterminate sweep below.
                             const pct =
@@ -550,7 +944,13 @@ export const PostgresManager = () => {
                               // Outer chassis — soft frame around the gradient indigo canvas, with hover lift.
                               <div
                                 key={db.name}
-                                className="rounded-[22px] border border-[var(--border)] bg-[var(--card)] p-2 flex flex-col transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_14px_32px_rgba(65,51,255,0.10)]"
+                                className="lift rounded-[22px] border bg-[var(--card)] p-2 flex flex-col hover:-translate-y-1 [--lift-glow:0_14px_32px_rgba(65,51,255,0.10)]"
+                                style={{
+                                  // Live DBs get an accent-green hairline so they're scannable
+                                  // from across the grid; everything else keeps the neutral border.
+                                  borderColor: isLive ? 'var(--accent-green)' : 'var(--border)',
+                                }}
+                                title={isLive ? `In use by an app container in this compose project` : undefined}
                               >
                                 {/* Display canvas — gradient indigo with subtle top sheen for depth. */}
                                 <div
@@ -564,12 +964,24 @@ export const PostgresManager = () => {
                                     style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.12) 0%, transparent 100%)' }}
                                   />
 
-                                  {/* Top row: Active status pill + Database icon chip */}
+                                  {/* Top row: Active status pill (+ Live pill when this DB is the
+                                      one a sibling app container connects to) + Database icon chip. */}
                                   <div className="relative flex items-center justify-between mb-3">
-                                    <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold text-[#1A1A1E] shadow-[0_2px_6px_rgba(0,0,0,0.08)]">
-                                      <span className="h-1.5 w-1.5 rounded-full bg-[var(--accent-green)]" />
-                                      Active
-                                    </span>
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                      <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold text-[#1A1A1E] shadow-[0_2px_6px_rgba(0,0,0,0.08)]">
+                                        <span className="h-1.5 w-1.5 rounded-full bg-[var(--accent-green)]" />
+                                        Active
+                                      </span>
+                                      {isLive && (
+                                        <span
+                                          className="inline-flex items-center gap-1 rounded-full bg-[var(--accent-green)] px-2.5 py-1 text-[11px] font-bold text-white shadow-[0_2px_6px_rgba(0,0,0,0.10)]"
+                                          title="This database is referenced by an app container in this compose project."
+                                        >
+                                          <Sparkles className="h-3 w-3" />
+                                          Live
+                                        </span>
+                                      )}
+                                    </div>
                                     <span className="grid h-7 w-7 place-items-center rounded-full bg-white/20 text-white">
                                       <Database className="h-3.5 w-3.5" />
                                     </span>
@@ -613,8 +1025,8 @@ export const PostgresManager = () => {
                                       <div className="h-2 rounded-full overflow-hidden" style={{ background: 'rgba(65,51,255,0.10)' }}>
                                         {pct !== null ? (
                                           <div
-                                            className="h-full rounded-full transition-[width] duration-150 ease-out"
-                                            style={{ width: `${pct}%`, background: 'linear-gradient(90deg, #5b4dff, #4133ff)' }}
+                                            className="h-full w-full origin-left rounded-full transition-transform duration-150 ease-out"
+                                            style={{ transform: `scaleX(${pct / 100})`, background: 'linear-gradient(90deg, #5b4dff, #4133ff)' }}
                                           />
                                         ) : (
                                           <div className="h-full rounded-full pg-dump-indeterminate" />

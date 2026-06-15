@@ -10,6 +10,17 @@
   --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
   --font-serif: 'Newsreader', 'Merriweather', Georgia, 'Times New Roman', serif;
 
+  /* === Motion system =======================================================
+     Professional easing curves + a small snappy duration scale. Every
+     interactive transition pulls from these so the whole UI moves with one
+     consistent, polished cadence (fast entry → smooth deceleration). */
+  --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);   /* hovers, lifts, reveals */
+  --ease-standard:  cubic-bezier(0.4, 0, 0.2, 1);     /* generic in/out */
+  --ease-spring:    cubic-bezier(0.34, 1.4, 0.5, 1);  /* subtle overshoot for presses */
+  --dur-1: 150ms;   /* tap/press, color shifts */
+  --dur-2: 200ms;   /* default micro-interaction */
+  --dur-3: 260ms;   /* slightly larger reveals */
+
   /* === LIGHT THEME — soft cream page, flat white cards, vibrant accents ==== */
   --canvas: #FDFBF7;                /* page background */
   --canvas-soft: #F1F3F8;
@@ -48,6 +59,7 @@
   --tab-audit: #34A853;             /* Google green */
   --tab-scan: #0F9D9D;              /* teal — security scan */
   --tab-running: #FF6B35;           /* orange-coral — running apps */
+  --tab-wiki: #6D28D9;               /* deep violet — wiki / dev docs */
 
   /* Legacy aliases (kept so untouched components don't break) */
   --accent-lime: var(--accent-pink);
@@ -135,6 +147,7 @@
   --tab-audit: #34A853;             /* Google green */
   --tab-scan: #0F9D9D;              /* teal — security scan */
   --tab-running: #FF6B35;           /* orange-coral — running apps */
+  --tab-wiki: #8B5CF6;               /* violet — wiki / dev docs (dark variant) */
 
   --sidebar-foreground: var(--ink);
 }
@@ -360,6 +373,49 @@ html {
     border-radius: 1.25rem;
   }
 
+  /* .lift — the canonical interactive-card hover. GPU-only: the upward motion
+     rides on `transform` (supplied by the element's own hover:-translate-y-*),
+     and the soft glow is a pseudo-element whose OPACITY fades in. Nothing here
+     animates layout or box-shadow on the element itself, so hovering never
+     triggers a reflow/repaint cascade. will-change is hinted on hover only
+     (sparingly) so idle cards don't each hold a compositor layer. */
+  .lift {
+    position: relative;
+    transition: transform var(--dur-2) var(--ease-out-quint);
+  }
+  .lift:hover { will-change: transform; }
+  .lift::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    box-shadow: var(--lift-glow, 0 16px 34px rgba(91, 77, 255, 0.13));
+    opacity: 0;
+    transition: opacity var(--dur-2) var(--ease-out-quint);
+    pointer-events: none;
+  }
+  .lift:hover::after,
+  .lift:focus-visible::after { opacity: 1; }
+  @media (prefers-reduced-motion: reduce) {
+    .lift,
+    .lift::after { transition: none; }
+  }
+
+  /* .lift-shadow — same snappy transform lift, but the glow rides on the
+     element's own box-shadow instead of a pseudo. Reserved for cards whose
+     rounded media is clipped by `overflow:hidden` on the host (which would clip
+     a pseudo glow). The shadow transition is explicit (transform + box-shadow
+     only — never transition-all) and fires only on a single hovered card, so
+     it is not a continuous repaint source. */
+  .lift-shadow {
+    transition: transform var(--dur-2) var(--ease-out-quint),
+                box-shadow var(--dur-2) var(--ease-out-quint);
+  }
+  .lift-shadow:hover { will-change: transform; }
+  @media (prefers-reduced-motion: reduce) {
+    .lift-shadow { transition: none; }
+  }
+
   /* Status dots — muted soft tones for the warm palette */
   .status-dot-online {
     width: 0.5rem;
@@ -427,3 +483,196 @@ html {
 .dark .text-slate-400 { color: var(--ink-muted) !important; }
 .dark .bg-white { background-color: var(--card) !important; }
 .dark .glass-skeleton { background: rgba(245, 245, 247, 0.06) !important; }
+
+/* === Wiki markdown body — typography for rendered post content ===
+   Applied to a `.markdown-body` wrapper. Mirrors a Hashnode-style article:
+   generous serif headings, comfy body line-height, soft accent for links,
+   muted code blocks. All colors swap via tokens so dark mode just works. */
+.markdown-body {
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 1.0625rem;
+  line-height: 1.78;
+}
+.markdown-body > * + * { margin-top: 1.2rem; }
+.markdown-body h1,
+.markdown-body h2,
+.markdown-body h3,
+.markdown-body h4,
+.markdown-body h5,
+.markdown-body h6 {
+  font-family: var(--font-serif);
+  font-weight: 700;
+  letter-spacing: -0.012em;
+  line-height: 1.2;
+  color: var(--ink);
+  margin-top: 2.4rem;
+  margin-bottom: 0.6rem;
+  scroll-margin-top: 5rem;
+  position: relative;
+}
+.markdown-body h1 { font-size: 2.25rem; }
+.markdown-body h2 { font-size: 1.75rem; }
+.markdown-body h3 { font-size: 1.375rem; }
+.markdown-body h4 { font-size: 1.125rem; }
+.markdown-body h5,
+.markdown-body h6 { font-size: 1rem; color: var(--ink-muted); }
+.markdown-body .md-anchor {
+  position: absolute;
+  left: -1.25rem;
+  top: 0.05em;
+  font-weight: 400;
+  font-family: var(--font-sans);
+  color: var(--ink-muted);
+  opacity: 0;
+  text-decoration: none;
+  transition: opacity 0.15s ease;
+}
+.markdown-body :is(h1, h2, h3, h4, h5, h6):hover .md-anchor { opacity: 0.55; }
+.markdown-body p { color: var(--ink); }
+.markdown-body a {
+  color: var(--accent-pink);
+  text-decoration: none;
+  border-bottom: 1px solid color-mix(in srgb, var(--accent-pink) 30%, transparent);
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+.markdown-body a:hover { border-bottom-color: var(--accent-pink); }
+.markdown-body strong { font-weight: 700; color: var(--ink); }
+.markdown-body em { font-style: italic; }
+.markdown-body del { color: var(--ink-muted); }
+.markdown-body code {
+  font-family: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
+  font-size: 0.88em;
+  background: color-mix(in srgb, var(--accent-pink) 10%, transparent);
+  color: var(--ink);
+  padding: 0.12em 0.4em;
+  border-radius: 0.35rem;
+}
+.markdown-body pre {
+  background: color-mix(in srgb, var(--ink) 92%, var(--accent-pink));
+  color: #f5f5f7;
+  padding: 1.1rem 1.25rem;
+  border-radius: 0.75rem;
+  overflow-x: auto;
+  font-size: 0.9rem;
+  line-height: 1.55;
+  position: relative;
+}
+.markdown-body pre[data-lang]::before {
+  content: attr(data-lang);
+  position: absolute;
+  top: 0.5rem;
+  right: 0.8rem;
+  font-family: var(--font-sans);
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: rgba(245, 245, 247, 0.55);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.markdown-body pre code {
+  background: transparent;
+  color: inherit;
+  padding: 0;
+  border-radius: 0;
+  font-size: inherit;
+}
+.markdown-body ul,
+.markdown-body ol {
+  padding-left: 1.6rem;
+}
+.markdown-body ul { list-style: disc; }
+.markdown-body ol { list-style: decimal; }
+.markdown-body li { margin-top: 0.35rem; }
+.markdown-body blockquote {
+  border-left: 3px solid var(--accent-pink);
+  padding: 0.4rem 0 0.4rem 1rem;
+  color: var(--ink-muted);
+  font-style: italic;
+  background: color-mix(in srgb, var(--accent-pink) 5%, transparent);
+  border-radius: 0 0.5rem 0.5rem 0;
+}
+.markdown-body hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 2.5rem 0;
+}
+.markdown-body img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 0.75rem;
+  border: 1px solid var(--border);
+  display: block;
+}
+
+/* GFM tables — hairline grid, warm header, zebra rows, scrolls on small screens. */
+.markdown-body table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1.6rem 0;
+  font-size: 0.95rem;
+  display: block;
+  overflow-x: auto;
+}
+.markdown-body thead { background: var(--card-warm); }
+.markdown-body th,
+.markdown-body td {
+  border: 1px solid var(--border);
+  padding: 0.55rem 0.85rem;
+  text-align: left;
+  vertical-align: top;
+}
+.markdown-body th { font-weight: 700; color: var(--ink); }
+.markdown-body tbody tr:nth-child(even) {
+  background: color-mix(in srgb, var(--ink) 2.5%, transparent);
+}
+
+/* Task lists (- [ ] / - [x]) — drop the bullet, keep the checkbox aligned. */
+.markdown-body ul.contains-task-list { list-style: none; padding-left: 0.4rem; }
+.markdown-body li.task-list-item { list-style: none; margin-top: 0.3rem; }
+.markdown-body li.task-list-item input[type="checkbox"] {
+  margin-right: 0.55rem;
+  accent-color: var(--accent-pink);
+  vertical-align: middle;
+}
+
+/* Mermaid diagrams — strip the dark code-block chrome and center the SVG. The
+   raw source stays faintly visible only until mermaid swaps in the diagram. */
+.markdown-body pre.mermaid {
+  background: transparent;
+  color: var(--ink-muted);
+  padding: 0.5rem 0;
+  text-align: center;
+  border-radius: 0;
+  overflow-x: auto;
+}
+.markdown-body pre.mermaid[data-processed] { color: inherit; }
+.markdown-body pre.mermaid svg { max-width: 100%; height: auto; }
+
+/* === TipTap WYSIWYG editor === */
+/* Empty-line placeholder (TipTap's Placeholder extension). The CSS pseudo-
+   element approach keeps the placeholder out of the document so it doesn't
+   serialize into the markdown output. */
+.markdown-body.is-editor-empty:first-child::before,
+.markdown-body p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: var(--ink-muted);
+  pointer-events: none;
+  height: 0;
+}
+/* ProseMirror root — disable default outline, allow the editor to grow. */
+.markdown-body.ProseMirror { outline: none; }
+.markdown-body.ProseMirror p.is-empty::before {
+  content: attr(data-placeholder);
+  color: var(--ink-muted);
+  float: left;
+  pointer-events: none;
+  height: 0;
+}
+/* Active/selected image inside the editor — soft accent ring so authors know
+   they can press Backspace to remove it. */
+.markdown-body.ProseMirror img.ProseMirror-selectednode {
+  outline: 3px solid var(--accent-pink);
+  outline-offset: 2px;
+}
