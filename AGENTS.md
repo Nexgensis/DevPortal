@@ -218,6 +218,14 @@ A **"Running Apps"** tab gives a live drill-down per server: **Server → Compos
 - **UI** [components/RunningApps.tsx](frontend/src/components/RunningApps.tsx) + [hooks/useRunningApps.ts](frontend/src/hooks/useRunningApps.ts): server picker → split view. The grid view shows **folder-shape cards** (4 per row at xl breakpoint, square aspect, SVG `clipPath` cuts the inverse-curve tab) plus a left stats sidebar (Applications / Containers / Compose Files). **Theme-aware palette** via [hooks/useTheme.ts](frontend/src/hooks/useTheme.ts) (watches `.dark` class on `<html>` with a MutationObserver):
   - **Light**: blue `#1aa3ff` outer / cream `#f0f7fc` body for unpinned; orange `#e85d2f` outer / cream `#fdf0e8` body for **pinned** — the warm color reads as "promoted" at a glance. Sidebar uses three colorful tinted cards with icons (`Layers`, `Container`, `FileCode2`).
   - **Dark**: vibrant gradient top (blue `#3b82f6 → #1d4ed8` unpinned, red `#ef4444 → #b91c1c` pinned) with a `#111` border, dark `#222` folder body, glossy white sheen overlay on the top 40%, white title + count, gray subtitle/label. Sidebar uses three matching dark `#222 / #111` cards — no icons, big white number.
+
+### Dev Wiki
+A **"Dev Wiki"** tab is a Hashnode-inspired developer-onboarding blog. Posts are markdown-authored articles with title, slug, excerpt, cover image, comma-separated tags, free-form category, view counter, and a published/draft flag. Anyone authenticated can author; the author or an admin can edit/delete.
+- **Model** [WikiPost](backend/models/wiki_post.go) (table `wiki_posts`, AutoMigrated): UUID PK, `slug` (unique), `title`, `excerpt`, `content` (markdown), `cover_image`, `tags`, `category`, `author_id`/`author_name` (denormalized at create time so deleted users don't blank historic posts), `published` + `published_at`, `view_count`, GORM soft-delete.
+- **Routes** [controllers/wiki.go](backend/controllers/wiki.go): `GET /api/wiki` (list, omits content; supports `?category=&tag=`), `GET /api/wiki/:key` (by slug OR UUID, includes content, bumps `view_count`), `POST /api/wiki` (any authed user), `PUT /api/wiki/:id` + `DELETE /api/wiki/:id` (author or admin — enforced in controller). Slug is auto-derived from title and de-duped with a `-2`/`-3`/… suffix. Drafts are visible only to the author + admins.
+- **Markdown** rendered by **markdown-it** (full CommonMark + GFM) at [frontend/src/lib/markdown.ts](frontend/src/lib/markdown.ts) — headings (anchor IDs for TOC), bold/italic/strikethrough/code, fenced code (with `data-lang` label), ordered/unordered/**task** lists, links (autolinked, external → new tab), images, blockquotes, hr, and **GFM tables**. ` ```mermaid ` fences emit `<pre class="mermaid">` which [hooks/useMermaid.ts](frontend/src/hooks/useMermaid.ts) turns into SVG diagrams (mermaid is **lazy-imported** — own chunk, only loads when a viewed post has a diagram; `securityLevel: 'strict'`). **Security:** `html: false` (raw HTML in source is escaped, never executed) + markdown-it's unsafe-protocol link filter + a **DOMPurify** pass before `dangerouslySetInnerHTML`. Output renders into `.markdown-body` (styles in [styles/globals.css](frontend/src/styles/globals.css), theme-aware; includes table/task-list/mermaid styling). The editor surface is TipTap (`tiptap-markdown`) in [components/wiki/RichEditor.tsx](frontend/src/components/wiki/RichEditor.tsx) — StarterKit + Link/Image + **TableKit** (`@tiptap/extension-table`) + **TaskList/TaskItem** (`@tiptap/extension-list`) so tables and checklists round-trip. A custom `handlePaste` parses pasted markdown into rich blocks via the markdown parser + a ProseMirror DOM slice (ProseMirror skips tiptap-markdown's own text parser when the clipboard also has `text/html`, which would otherwise dump a pasted `.md` into one code block). Only the published/detail view runs the markdown→HTML renderer.
+- **UI** [components/Wiki.tsx](frontend/src/components/Wiki.tsx) is a single state-machine component with three internal sub-views: `WikiListView` (search + category filter + featured card + responsive grid), `WikiDetailView` (cover hero + author meta + markdown body + right-side TOC sidebar on xl screens + edit/delete for author/admin), `WikiEditor` (two-pane markdown source + live preview with mobile toggle, all meta fields, draft toggle). Cards use a deterministic cover gradient when no `coverImage` is set. Tab color: `--tab-wiki` (deep violet `#6D28D9` light / `#8B5CF6` dark).
+- **Hooks** [hooks/useWiki.ts](frontend/src/hooks/useWiki.ts): `useWikiList(opts)` for the index, `useWikiPost(key)` for one post, `useWikiMutations()` for create/update/delete. All toast-driven on failure.
   - Drill-in (Frontends/Services split) and the agent-missing banner are unchanged by the redesign.
 
 ---
@@ -227,7 +235,8 @@ A **"Running Apps"** tab gives a live drill-down per server: **Server → Compos
 | Sidebar item | What it does | Admin-only? |
 |---|---|---|
 | **Applications** | Lists Docker Compose apps grouped by project. Start/Stop buttons start/stop the project's containers via the host's Docker API (mTLS). Per-app runtime timer (e.g., auto-stop after 60 min). | No (users can start/stop) |
-| **Database Dump** | Lists postgres containers on a server → lists databases in a container → downloads `pg_dump` output as `.sql`. | No |
+| **Database Dump** | Lists postgres containers on a server → lists databases in a container → downloads `pg_dump` output as `.sql`. Now also shows an aggregate stats strip (most-dumped DBs / top users / monthly count + size / 30-day sparkline) and a project context strip per container (compose project + sibling app + active-DB inference from env vars). | No |
+| **Dev Wiki** | Hashnode-style developer onboarding blog. Posts authored in Markdown with cover images, tags, category, slugs. Anyone authenticated can author posts; authors + admins can edit/delete their own. Renders with a TOC sidebar, reading-time estimate, and view counter. | No (anyone can author) |
 | **Infrastructure** | CRUD for Servers (with mTLS Docker API credentials) + Projects. | Yes |
 | **Users** | CRUD for users (admin / user roles). | Yes |
 | **Audit Logs** | Read-only feed of all actions with filters (action type, resource type, username) + pagination. | Yes |
@@ -309,11 +318,18 @@ Use `bento-card` for new code. The `glass-*` names are kept because old componen
 
 **Dialogs** ([ui/dialog.tsx](frontend/src/components/ui/dialog.tsx), Radix): flat — `DialogContent` uses `glass-card-strong` (= flat card) and the overlay is a plain dim (`bg-black/50`, **no `backdrop-blur`**, per the no-glassmorphism rule). Shared by all app dialogs (apps, servers, projects, users, postgres credentials).
 
-### No animation
+### Animation policy
 
 - `framer-motion` is installed but **not used anywhere**. Removed `motion.div`, `whileHover`, `whileTap`, `layoutId`, `AnimatePresence` calls during the warm-UI pass.
 - Navigation is instant via direct `onNavigate(view)` — no view-transition animation (the unused `lib/view-transitions.ts` helper was removed).
-- Only animations remaining are CSS transitions on hover (color/bg), focus rings, the skeleton shimmer keyframe, and a `.glass-skeleton::after` sweep.
+- No JS-driven animation. All motion is CSS, GPU-composited (`transform`/`opacity` only).
+
+### Motion system (perf pass)
+
+- **Tokens** in `globals.css :root`: easings `--ease-out-quint` (hovers/lifts), `--ease-standard`, `--ease-spring`; durations `--dur-1: 150ms` (taps/colors), `--dur-2: 200ms` (default micro-interaction), `--dur-3: 260ms`.
+- **`.lift`** utility = the canonical interactive-card hover: transform-only motion (the element keeps its own `hover:-translate-y-*`) + a pseudo-element glow that fades via `opacity`. Override the glow per card with `[--lift-glow:...]`. Host must NOT have `overflow:hidden` (it clips the pseudo) — clip rounded media on an inner wrapper instead.
+- **`.lift-shadow`** = same transform lift but the glow rides the element's own `box-shadow` (explicit `transform,box-shadow` transition, never `transition-all`). Use ONLY when the host's `overflow:hidden` clips a pseudo (e.g. the featured Wiki card). Hover-only, single-card → not a repaint concern.
+- **Rules**: never `transition-all`; never transition layout props (width/height/margin/padding/top-left) or `box-shadow` (except `.lift-shadow`). Progress bars animate via `transform: scaleX()` + `origin-left`, not `width`. Focus-ring box-shadows snap in (not transitioned). `will-change` only on `:hover` of lift cards + the infinite background keyframes (`.mesh-blob-*`, `.aura-halo`, `.card-float`) — used sparingly.
 
 ---
 
