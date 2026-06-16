@@ -49,6 +49,11 @@ services:
       NEXUS_PASS: "${NEXUS_PASS:-Welcome@123}"
     ports:
       - "8080:8080"
+    volumes:
+      # Persist wiki image uploads (written to /app/uploads/wiki) so they
+      # survive container recreation/redeploys. Without this, every backend
+      # rebuild wipes all uploaded cover images.
+      - wiki-uploads:/app/uploads
     restart: always
     deploy:
       resources:
@@ -73,3 +78,4 @@ services:
 
 volumes:
   pgdata:
+  wiki-uploads:
