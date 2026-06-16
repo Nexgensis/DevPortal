@@ -11,6 +11,7 @@ import { StatusBadge } from './ui/status-badge';
 import { GlassSkeleton } from './ui/glass-skeleton';
 import { PillTag } from './ui/pill-tag';
 import { ServerPickerCard } from './ui/server-picker-card';
+import { FleetInsights } from './FleetInsights';
 import { useTheme } from '../hooks/useTheme';
 
 // One-line copy-paste deploy command for the helper agent. Shown inline when a
@@ -448,29 +449,35 @@ export const RunningApps = () => {
       );
     }
     return (
-      <GlassCard>
-        <div className="flex items-center gap-4 mb-6">
-          <div className="h-12 w-12 rounded-2xl bg-[var(--accent-pink-soft)] flex items-center justify-center">
-            <Rocket className="h-6 w-6 text-[var(--ink)]" />
+      <div className="space-y-6">
+        {/* Fleet-wide live resource insights — top CPU/RAM consumers + per-server
+            load across every server. Self-fetching; only polls on this landing. */}
+        <FleetInsights />
+
+        <GlassCard>
+          <div className="flex items-center gap-4 mb-6">
+            <div className="h-12 w-12 rounded-2xl bg-[var(--accent-pink-soft)] flex items-center justify-center">
+              <Rocket className="h-6 w-6 text-[var(--ink)]" />
+            </div>
+            <div>
+              <h2 className="text-xl font-semibold text-[var(--ink)]">Running Apps</h2>
+              <p className="text-[var(--ink-muted)] text-sm">Pick a server to see its compose projects and frontend URLs.</p>
+            </div>
           </div>
-          <div>
-            <h2 className="text-xl font-semibold text-[var(--ink)]">Running Apps</h2>
-            <p className="text-[var(--ink-muted)] text-sm">Pick a server to see its compose projects and frontend URLs.</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {servers.map((s) => (
+              <ServerPickerCard
+                key={s.id}
+                name={s.name}
+                address={s.address}
+                status={s.status === 'online' ? 'online' : s.status === 'checking' ? 'checking' : 'offline'}
+                stats={serverStats[s.id]}
+                onClick={() => setSelectedServer(s.id)}
+              />
+            ))}
           </div>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {servers.map((s) => (
-            <ServerPickerCard
-              key={s.id}
-              name={s.name}
-              address={s.address}
-              status={s.status === 'online' ? 'online' : s.status === 'checking' ? 'checking' : 'offline'}
-              stats={serverStats[s.id]}
-              onClick={() => setSelectedServer(s.id)}
-            />
-          ))}
-        </div>
-      </GlassCard>
+        </GlassCard>
+      </div>
     );
   }
 

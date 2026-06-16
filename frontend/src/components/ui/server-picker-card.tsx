@@ -12,49 +12,53 @@ export type ServerPickerStatus = 'online' | 'offline' | 'checking' | 'idle';
 
 interface StatusTone {
   label: string;
-  bg: string;        // pale tint for the left accent panel
-  ink: string;       // primary text color (dark on the pale tint)
-  subtle: string;    // muted text color (e.g. for the host address)
-  accent: string;    // saturated brand accent for the status icon + dot
-  glowRing: string;  // unused (kept for type stability)
+  fill: string;      // flat solid color for the left accent panel
+  dot: string;       // status dot color (pops on the fill)
+  glow: string;      // hover glow color tint
+  tint: string;      // flat pale wash for the right stats panel (coordinates both halves)
+  accent: string;    // saturated status color for the stat icon chips
   icon: LucideIcon;
 }
 
+// Flat solid panels (white text) — no gradients. The left panel is one clean
+// status color, the right stats panel a pale wash of the same hue.
 const STATUS_TONE: Record<ServerPickerStatus, StatusTone> = {
   online: {
+    // Teal — a different brand hue from the indigo project/database cards so a
+    // server tile stands on its own. (Nexus scan-teal.)
     label: 'Online',
-    bg: '#EEEBFF',                       // pale violet
-    ink: '#1A1A1E',
-    subtle: 'rgba(26,26,30,0.55)',
-    accent: 'var(--accent-pink)',        // saturated violet for the status icon + dot
-    glowRing: '',                        // unused (kept for type stability)
+    fill: '#0f9d9d',
+    dot: '#eafffb',                      // bright mint dot, pops on teal
+    glow: 'rgba(15,157,157,0.20)',
+    tint: '#e9f6f5',
+    accent: '#0f9d9d',
     icon: Activity,
   },
   offline: {
     label: 'Offline',
-    bg: '#FEE4E5',                       // pale coral
-    ink: '#1A1A1E',
-    subtle: 'rgba(26,26,30,0.55)',
-    accent: 'var(--accent-destructive)',
-    glowRing: '',
+    fill: '#f0455c',                     // coral/red
+    dot: '#ffffff',
+    glow: 'rgba(240,69,92,0.18)',
+    tint: '#ffeceb',
+    accent: '#e8384f',
     icon: CircleOff,
   },
   checking: {
     label: 'Checking',
-    bg: '#FEF3C7',                       // pale amber
-    ink: '#3a2606',
-    subtle: 'rgba(58,38,6,0.65)',
-    accent: '#D97706',
-    glowRing: '',
+    fill: '#f59e0b',                     // amber
+    dot: '#ffffff',
+    glow: 'rgba(245,158,11,0.18)',
+    tint: '#fdf3e0',
+    accent: '#d97706',
     icon: Clock,
   },
   idle: {
     label: 'Idle',
-    bg: '#F1F5F9',                       // pale slate
-    ink: '#1A1A1E',
-    subtle: 'rgba(26,26,30,0.55)',
-    accent: '#64748B',
-    glowRing: '',
+    fill: '#64748b',                     // slate
+    dot: '#ffffff',
+    glow: 'rgba(100,116,139,0.16)',
+    tint: '#eef1f5',
+    accent: '#64748b',
     icon: Clock,
   },
 };
@@ -82,29 +86,33 @@ export const ServerPickerCard = ({ name, address, status, onClick, stats }: Serv
     <button
       type="button"
       onClick={onClick}
-      className="group block w-full text-left rounded-[28px] p-2 border border-[var(--border)] bg-[var(--card)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-pink)] focus-visible:ring-offset-2"
+      className="lift group block w-full text-left rounded-[28px] p-2 border border-[var(--border)] bg-[var(--card)] hover:-translate-y-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-pink)] focus-visible:ring-offset-2"
+      style={{ ['--lift-glow' as never]: `0 16px 36px ${tone.glow}` }}
       aria-label={`${name} server (${tone.label})`}
     >
       <div className="grid grid-cols-1 sm:grid-cols-5 gap-2">
-        {/* Accent panel — status colour, focal server name + address. The name
-            uses cqw clamp + containerType so it scales gracefully with the
+        {/* Accent panel — saturated gradient, focal server name + address. The
+            name uses cqw clamp + containerType so it scales gracefully with the
             card width: bigger on wider cards, never overflowing on narrow. */}
         <div
-          className="relative sm:col-span-3 rounded-[18px] px-4 py-4 flex flex-col overflow-hidden"
+          className="relative sm:col-span-3 rounded-[18px] px-4 py-4 flex flex-col overflow-hidden text-white"
           style={{
-            background: tone.bg,
-            color: tone.ink,
+            background: tone.fill,
             minHeight: '160px',
             containerType: 'inline-size',
           }}
         >
-          <div className="flex items-center gap-1.5 text-[11px] font-semibold" style={{ color: tone.accent }}>
-            <span aria-hidden className="h-1.5 w-1.5 rounded-full" style={{ background: tone.accent }} />
+          <div className="relative flex items-center gap-1.5 text-[11px] font-semibold">
+            <span
+              aria-hidden
+              className="h-1.5 w-1.5 rounded-full"
+              style={{ background: tone.dot, boxShadow: `0 0 0 3px color-mix(in srgb, ${tone.dot} 30%, transparent)` }}
+            />
             <Icon className="h-3 w-3" strokeWidth={2.5} />
             <span className="uppercase tracking-wider">{tone.label}</span>
           </div>
 
-          <div className="mt-auto">
+          <div className="relative mt-auto">
             {/* BIG focal server name — scales with container width using cqw. */}
             <div
               className="font-bold tracking-tight break-all line-clamp-2"
@@ -120,7 +128,7 @@ export const ServerPickerCard = ({ name, address, status, onClick, stats }: Serv
             <div
               className="truncate font-medium font-mono tabular-nums mt-1.5"
               style={{
-                color: tone.subtle,
+                color: 'rgba(255,255,255,0.72)',
                 fontSize: 'clamp(11px, 3cqw, 14px)',
                 letterSpacing: '-0.01em',
               }}
@@ -130,15 +138,16 @@ export const ServerPickerCard = ({ name, address, status, onClick, stats }: Serv
           </div>
         </div>
 
-        {/* Light stats panel — three big numbers + uppercase labels, footer open hint. */}
+        {/* Stats panel — softly tinted with the status color so both halves of
+            the card read as one tile (not a colored block next to plain gray). */}
         <div
           className="sm:col-span-2 rounded-[18px] px-3.5 py-3.5 flex flex-col"
-          style={{ background: 'var(--canvas-soft)', color: 'var(--ink)', minHeight: '160px' }}
+          style={{ background: tone.tint, color: 'var(--ink)', minHeight: '160px' }}
         >
           <div className="flex flex-col gap-2">
-            <StatRow icon={Box}        value={fmt(stats?.containers)}   label="Containers" />
-            <StatRow icon={FileCode2}  value={fmt(stats?.composeFiles)} label="Compose files" />
-            <StatRow icon={Layers}     value={fmt(stats?.projects)}     label="Projects" />
+            <StatRow icon={Box}        value={fmt(stats?.containers)}   label="Containers"    accent={tone.accent} />
+            <StatRow icon={FileCode2}  value={fmt(stats?.composeFiles)} label="Compose files" accent={tone.accent} />
+            <StatRow icon={Layers}     value={fmt(stats?.projects)}     label="Projects"      accent={tone.accent} />
           </div>
           <div className="mt-auto pt-2 flex items-center justify-end gap-1 text-[11px] font-medium text-[var(--ink-muted)] group-hover:text-[var(--ink)]">
             <ServerIcon className="h-3 w-3" strokeWidth={2} />
@@ -153,10 +162,13 @@ export const ServerPickerCard = ({ name, address, status, onClick, stats }: Serv
 
 // StatRow — single stat line on the light panel: icon chip + big number + label.
 // Big number sits as the focal element; label is a subtler one-liner below.
-const StatRow = ({ icon: Icon, value, label }: { icon: LucideIcon; value: string; label: string }) => (
+const StatRow = ({ icon: Icon, value, label, accent }: { icon: LucideIcon; value: string; label: string; accent: string }) => (
   <div className="flex items-center gap-2.5 min-w-0">
-    <div className="h-7 w-7 rounded-lg flex items-center justify-center shrink-0 bg-[var(--card)] border border-[var(--border)]">
-      <Icon className="h-3 w-3 text-[var(--ink-muted)]" strokeWidth={2} />
+    <div
+      className="h-7 w-7 rounded-lg flex items-center justify-center shrink-0 bg-[var(--card)]"
+      style={{ border: `1px solid color-mix(in srgb, ${accent} 30%, var(--border))` }}
+    >
+      <Icon className="h-3 w-3" strokeWidth={2} style={{ color: accent }} />
     </div>
     <div className="min-w-0 flex-1">
       <div className="text-[15px] font-bold leading-none tabular-nums text-[var(--ink)]">{value}</div>

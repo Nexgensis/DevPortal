@@ -367,6 +367,24 @@ html {
             mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 72' preserveAspectRatio='none'%3E%3Cpath d='M0,72L0,16Q0,0,16,0L116,0C150,0,148,72,200,72Z' fill='black'/%3E%3C/svg%3E") no-repeat center / 100% 100%;
   }
 
+  /* Active tab outline — traces the folder silhouette (rounded top-left, flat top,
+     sweeping right tail) and stops AT the baseline, leaving the bottom open so it
+     flows straight into the card's own border with no break. Drawn as `var(--border)`
+     revealed through a STROKED-path mask, so it inherits the exact curve of the fill
+     mask above and stays theme-aware (light/dark) without a second SVG. The path is
+     inset ~1px from the box edge so the full stroke renders inside the tab and isn't
+     clipped by the parent's fill mask. Only the selected tab gets it. */
+  .folder-tab--active::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    background: var(--border);
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 72' preserveAspectRatio='none'%3E%3Cpath d='M1,72L1,16Q1,1,16,1L116,1C150,1,148,72,199,72' fill='none' stroke='black' stroke-width='1.6'/%3E%3C/svg%3E") no-repeat center / 100% 100%;
+            mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 72' preserveAspectRatio='none'%3E%3Cpath d='M1,72L1,16Q1,1,16,1L116,1C150,1,148,72,199,72' fill='none' stroke='black' stroke-width='1.6'/%3E%3C/svg%3E") no-repeat center / 100% 100%;
+  }
+
   .bento-card-hover {
     background: var(--card);
     border: 1px solid var(--border);

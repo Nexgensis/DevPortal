@@ -54,7 +54,7 @@ export function FolderTabs({ active, onNavigate, isAdmin }: FolderTabsProps) {
               // Physically overlap: each tab's right tail tucks under the next.
               marginRight: i === folders.length - 1 ? 0 : '-30px',
             } as any}
-            className={`folder-tab flex w-44 sm:w-52 md:w-60 lg:w-72 shrink-0 items-center justify-start gap-2 md:gap-3 whitespace-nowrap pl-4 pr-8 md:pl-7 md:pr-16 text-sm md:text-base lg:text-lg focus:outline-none transition-[padding-top,color,background-color] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+            className={`folder-tab ${isActive ? 'folder-tab--active' : ''} flex w-44 sm:w-52 md:w-60 lg:w-72 shrink-0 items-center justify-start gap-2 md:gap-3 whitespace-nowrap pl-4 pr-8 md:pl-7 md:pr-16 text-sm md:text-base lg:text-lg focus:outline-none transition-[padding-top,color,background-color] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] ${
               isActive
                 // Active: heavy editorial serif, high-contrast ink, tallest box.
                 ? 'pt-7 md:pt-9 lg:pt-10 pb-4 md:pb-5 font-display font-bold text-[var(--ink)]'

@@ -68,6 +68,10 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
     // Aggregate metrics for the Database Dump page (most-dumped, top users,
     // totals, trend). Reads audit_logs; no Docker calls.
     auth.GET("/postgres/dump-stats", controllers.GetDumpStats(db))
+    // Fleet-wide live resource insights (top CPU/RAM consumers, per-server load)
+    // across all servers. Cached + background-refreshed; cold cache returns
+    // computing=true and the client polls.
+    auth.GET("/fleet/resources", controllers.GetFleetResources(db))
     // Per-container PostgreSQL credentials — read for any authenticated user
     // (passwords are never returned); mutations are admin-only (registered below).
     auth.GET("/servers/:id/postgres/credentials", controllers.ListPostgresCredentials(db))
