@@ -165,7 +165,11 @@ export const PostgresManager = () => {
       // separately so the working view can wait for it before choosing a layout.
       setContainerContext(null);
       setContextLoading(true);
-      getContainerContext(selectedServer, selectedContainer)
+      getContainerContext(
+        selectedServer,
+        selectedContainer,
+        containers.find((c) => c.id === selectedContainer)?.name,
+      )
         .then(setContainerContext)
         .finally(() => setContextLoading(false));
     }

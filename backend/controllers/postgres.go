@@ -371,8 +371,17 @@ func GetPostgresContainerContext(db *gorm.DB) gin.HandlerFunc {
 			return
 		}
 
+		// Same credential chain as the other postgres endpoints — the context
+		// service now queries pg_stat_database inside the container, so it needs
+		// to authenticate the same way.
+		creds, err := resolvePostgresCreds(db, serverID, c.Query("container_name"))
+		if err != nil {
+			respondWithError(c, http.StatusInternalServerError, "Failed to resolve credentials")
+			return
+		}
+
 		svc := services.NewPostgresContextService()
-		ctxOut, err := svc.GetContainerContext(c.Request.Context(), &server, containerID)
+		ctxOut, err := svc.GetContainerContext(c.Request.Context(), &server, containerID, creds)
 		if err != nil {
 			respondWithError(c, http.StatusInternalServerError, err.Error())
 			return

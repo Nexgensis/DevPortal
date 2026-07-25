@@ -52,12 +52,27 @@ export interface PostgresConsumer {
   envSource?: string;            // comma-separated env keys that produced them
 }
 
+/** One database's live usage, read from the server's own statistics views. */
+export interface DatabaseActivity {
+  name: string;
+  backends: number;              // connections open right now
+  txns: number;                  // commits + rollbacks since the last stats reset
+}
+
 /** Compose-project context for a postgres container — answers "what uses this DB?". */
 export interface PostgresContainerContext {
   hasProject: boolean;
   project?: string;
   workingDir?: string;
   consumers: PostgresConsumer[];
-  activeDatabases: string[];     // union of every consumer's discovered DBs
+  activeDatabases: string[];     // databases actually in use
   agentMissing: boolean;
+  /**
+   * How activeDatabases was determined. "pg_stat" means the server itself
+   * reported the connections; "compose"/"env" are configured values used only
+   * when the server reported nothing, so they may be stale.
+   */
+  activeSource?: 'pg_stat' | 'compose' | 'env';
+  /** Per-database breakdown behind a "pg_stat" answer. */
+  activity?: DatabaseActivity[];
 }

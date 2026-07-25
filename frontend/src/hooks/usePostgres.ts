@@ -334,17 +334,21 @@ export const usePostgres = () => {
   };
 
   // getContainerContext returns the compose-project context for a postgres
-  // container — siblings, ports, domains, and the inferred "live" databases.
+  // container — siblings, ports, domains, and which databases are live.
+  // containerName is optional but lets the backend look up stored credentials
+  // for the pg_stat query on images that dropped the default postgres role.
   // Best-effort: returns null on any failure so the UI can hide the strip
   // without spamming toasts.
   const getContainerContext = async (
     serverId: string,
     containerId: string,
+    containerName?: string,
   ): Promise<PostgresContainerContext | null> => {
     try {
       const token = getAuthToken();
+      const qs = containerName ? `?container_name=${encodeURIComponent(containerName)}` : '';
       const response = await fetch(
-        `${API_BASE}/servers/${serverId}/postgres/containers/${containerId}/context`,
+        `${API_BASE}/servers/${serverId}/postgres/containers/${containerId}/context${qs}`,
         {
           headers: {
             'Authorization': `Bearer ${token}`,
