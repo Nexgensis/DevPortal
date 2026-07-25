@@ -23,6 +23,14 @@ tmp_dir = "tmp"
   # Debouncing — wait 200ms after a file save before rebuilding.
   delay = 200
 
+  # Poll for changes instead of relying on inotify. Bind-mounted source from a
+  # macOS host does not deliver filesystem events into the Linux VM (true for
+  # Apple `container` and for Docker Desktop's gRPC-FUSE), so event-based
+  # watching silently never fires and you debug a stale binary. Same reason the
+  # frontend sets CHOKIDAR_USEPOLLING in docker-compose.dev.yml.
+  poll = true
+  poll_interval = 500
+
   # Stop the running binary before starting a new one.
   stop_on_error = true
   send_interrupt = true

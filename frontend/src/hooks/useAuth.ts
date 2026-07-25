@@ -142,25 +142,13 @@ export function useAuth() {
     }
   };
 
-  const logout = async () => {
-    try {
-      if (user?.token) {
-        // Call backend logout endpoint
-        await fetch(`${API_BASE}/auth/logout`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${user.token}`,
-            'Content-Type': 'application/json',
-          },
-        });
-      }
-    } catch (error) {
-      console.error('Logout request failed:', error);
-    } finally {
-      setUser(null);
-      localStorage.removeItem(AUTH_STORAGE_KEY);
-      toast.success('Signed out successfully');
-    }
+  // Logout is purely client-side: JWTs are stateless and the backend has no
+  // /auth/logout route, so the previous call to it 404'd on every sign-out.
+  // Dropping the token is what actually ends the session.
+  const logout = () => {
+    setUser(null);
+    localStorage.removeItem(AUTH_STORAGE_KEY);
+    toast.success('Signed out successfully');
   };
 
   const isAdmin = user?.role === 'admin';

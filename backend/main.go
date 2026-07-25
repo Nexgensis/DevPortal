@@ -15,9 +15,32 @@ import (
 	"gorm.io/gorm"
 )
 
+// requireSecrets fails the process at startup when the crypto material is
+// missing or unusable. Previously each call site carried its own fallback
+// ("YOUR_SECRET_KEY" in the middleware, "your-secret-key" in the SSO handler),
+// which meant an unset JWT_SECRET produced tokens nothing could validate, and a
+// missing ENCRYPTION_KEY silently degraded to storing secrets in plaintext.
+// Crashing on boot is the honest failure.
+func requireSecrets() {
+	if os.Getenv("JWT_SECRET") == "" {
+		log.Fatal("JWT_SECRET is not set — refusing to start (tokens would be unverifiable)")
+	}
+	// AES accepts 16, 24 or 32-byte keys; anything else fails at first use,
+	// which would be a runtime 500 on the first server or dump operation.
+	switch len(os.Getenv("ENCRYPTION_KEY")) {
+	case 16, 24, 32:
+	case 0:
+		log.Fatal("ENCRYPTION_KEY is not set — refusing to start (TLS keys and DB passwords could not be decrypted)")
+	default:
+		log.Fatalf("ENCRYPTION_KEY must be 16, 24 or 32 bytes for AES, got %d", len(os.Getenv("ENCRYPTION_KEY")))
+	}
+}
+
 func main() {
 	// Load .env file if it exists
 	_ = godotenv.Load()
+
+	requireSecrets()
 
 	// Initialize database with retry logic
 	dsn := os.Getenv("DB_DSN")
@@ -58,6 +81,10 @@ func main() {
 
 	if err := migrations.DropSSHColumns(db); err != nil {
 		log.Fatalf("Failed to drop legacy SSH columns: %v", err)
+	}
+
+	if err := migrations.WidenAuditResourceID(db); err != nil {
+		log.Fatalf("Failed to widen audit_logs.resource_id: %v", err)
 	}
 
 	// Start background timer service for auto-stopping apps

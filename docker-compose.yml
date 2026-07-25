@@ -5,10 +5,13 @@ services:
     restart: always
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: nexgensis
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}"
       POSTGRES_DB: webmanager
-    ports:
-      - "5432:5432"
+    # Not published to the host: only the backend on the compose network needs
+    # it, and exposing 5432 puts the database on every interface of the box.
+    # Re-add a "127.0.0.1:5432:5432" mapping if you need local psql access.
+    expose:
+      - "5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -29,24 +32,37 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    # Every value below comes from the environment (a .env file beside this
+    # compose file, or real env vars). No secret is written here — this file is
+    # committed, so anything inline is readable by everyone with repo access and
+    # stays in git history forever. See .env.example for the full list.
+    #
+    # `${VAR:?message}` makes compose refuse to start when a required secret is
+    # missing, instead of silently booting with an empty one.
     environment:
-      DB_DSN: "postgres://postgres:nexgensis@db:5432/webmanager?sslmode=disable"
+      DB_DSN: "postgres://postgres:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@db:5432/webmanager?sslmode=disable"
       PORT: 8080
-      JWT_SECRET: "r2dhNc6ePdPQBeZc5yMULGNF3/pC8ACWdMX7tkZPOiU="
-      ENCRYPTION_KEY: "12345678901234567890123456789012"
-      GIN_MODE: debug
-      SSO_ENABLED: "true"
-      MICROSOFT_CLIENT_ID: dcf16509-91a6-43a0-b0b2-85fe33d7a43f
-      MICROSOFT_TENANT_ID: e37bae5a-2850-45a2-9ed0-a198cb1388fd
-      MICROSOFT_CLIENT_SECRET: G9x8Q~5k2DR_pEsNgAr2sQT0Qy5SaHJeqTNVAaQ~
-      MICROSOFT_REDIRECT_URI: https://portal.nexgensis.com/api/auth/microsoft/callback
-      FRONTEND_URL: https://portal.nexgensis.com
-      SSO_AUTO_CREATE_USERS: "true"
-      SSO_DEFAULT_ROLE: user
-      SSO_ADMIN_EMAILS: sourav.kumar@nexgensis.com
-      NEXUS_URL: "${NEXUS_URL:-https://nexus.nexgensis.com}"
-      NEXUS_USER: "${NEXUS_USER:-admin}"
-      NEXUS_PASS: "${NEXUS_PASS:-Welcome@123}"
+      JWT_SECRET: "${JWT_SECRET:?set JWT_SECRET}"
+      ENCRYPTION_KEY: "${ENCRYPTION_KEY:?set ENCRYPTION_KEY (must be 16, 24 or 32 bytes)}"
+      GIN_MODE: "${GIN_MODE:-release}"
+      SSO_ENABLED: "${SSO_ENABLED:-true}"
+      MICROSOFT_CLIENT_ID: "${MICROSOFT_CLIENT_ID}"
+      MICROSOFT_TENANT_ID: "${MICROSOFT_TENANT_ID}"
+      MICROSOFT_CLIENT_SECRET: "${MICROSOFT_CLIENT_SECRET}"
+      MICROSOFT_REDIRECT_URI: "${MICROSOFT_REDIRECT_URI}"
+      FRONTEND_URL: "${FRONTEND_URL}"
+      CORS_ALLOWED_ORIGINS: "${CORS_ALLOWED_ORIGINS:-${FRONTEND_URL}}"
+      SSO_AUTO_CREATE_USERS: "${SSO_AUTO_CREATE_USERS:-true}"
+      SSO_DEFAULT_ROLE: "${SSO_DEFAULT_ROLE:-user}"
+      SSO_ADMIN_EMAILS: "${SSO_ADMIN_EMAILS}"
+      # Optional: seeds the break-glass admin on a fresh database only. Leave
+      # unset and the backend generates a password and logs it once on first boot.
+      ADMIN_USERNAME: "${ADMIN_USERNAME:-admin}"
+      ADMIN_PASSWORD: "${ADMIN_PASSWORD:-}"
+      ADMIN_EMAIL: "${ADMIN_EMAIL:-}"
+      NEXUS_URL: "${NEXUS_URL:-}"
+      NEXUS_USER: "${NEXUS_USER:-}"
+      NEXUS_PASS: "${NEXUS_PASS:-}"
     ports:
       - "8080:8080"
     volumes:

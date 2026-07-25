@@ -2,6 +2,7 @@ package router
 
 import (
     "os"
+    "strings"
 
     "backend/controllers"
     "backend/middleware"
@@ -10,21 +11,51 @@ import (
     "gorm.io/gorm"
 )
 
+// splitAndTrim turns "a, b ,c" into ["a","b","c"], dropping empties.
+func splitAndTrim(csv string) []string {
+    var out []string
+    for _, p := range strings.Split(csv, ",") {
+        if p = strings.TrimSpace(p); p != "" {
+            out = append(out, p)
+        }
+    }
+    return out
+}
+
 func SetupRouter(db *gorm.DB) *gin.Engine {
     r := gin.Default()
-    
-    // Add CORS middleware
+
+    // CORS. CORS_ALLOWED_ORIGINS is a comma-separated allowlist, e.g.
+    // "https://portal.nexgensis.com,http://localhost:3000". It falls back to
+    // FRONTEND_URL (already set for the SSO redirect) so a correctly configured
+    // deployment needs no new variable.
+    //
+    // The previous "*" let any website on the internet script authenticated
+    // requests against a console that can dump production databases. Kept
+    // narrow deliberately: this API is only ever called by its own SPA.
+    allowedOrigins := splitAndTrim(os.Getenv("CORS_ALLOWED_ORIGINS"))
+    if len(allowedOrigins) == 0 {
+        if fe := strings.TrimSpace(os.Getenv("FRONTEND_URL")); fe != "" {
+            allowedOrigins = []string{fe}
+        } else {
+            // Local dev default — the Vite dev server.
+            allowedOrigins = []string{"http://localhost:3000", "http://localhost:5173"}
+        }
+    }
     r.Use(cors.New(cors.Config{
-        AllowOrigins:     []string{"*"}, // Allow all origins for now
+        AllowOrigins:     allowedOrigins,
         AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
         AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
-        ExposeHeaders:    []string{"Content-Length"},
-        AllowCredentials: false, // Must be false when AllowOrigins is "*"
+        ExposeHeaders:    []string{"Content-Length", "Content-Disposition"},
+        AllowCredentials: false, // tokens travel in the Authorization header, not cookies
     }))
 
-    // Public auth routes (login - no JWT required)
+    // Public auth routes (login - no JWT required).
+    // No public registration: accounts are created by an admin via POST /api/users,
+    // or auto-provisioned by SSO when SSO_AUTO_CREATE_USERS=true. A self-serve
+    // register endpoint would hand any anonymous caller a `user` role, which can
+    // read every server and dump any database.
     r.POST("/api/auth/login", controllers.Login(db))
-    r.POST("/api/auth/register", controllers.Register(db))
 
     // Static file server for wiki image uploads. Served unauthenticated so
     // <img src=> tags work for any reader (including the prod nginx that

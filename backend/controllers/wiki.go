@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -45,6 +46,11 @@ func claimUsername(c *gin.Context) string {
 // drops non-alphanumerics, collapses runs of dashes, trims to 96 chars.
 var nonAlphanumRe = regexp.MustCompile(`[^a-z0-9]+`)
 
+// uuidRe guards lookups against uuid-typed columns. Postgres errors out on a
+// non-uuid literal rather than simply not matching, so the caller must check
+// the shape first.
+var uuidRe = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
+
 func slugify(s string) string {
 	s = strings.ToLower(strings.TrimSpace(s))
 	s = nonAlphanumRe.ReplaceAllString(s, "-")
@@ -72,33 +78,9 @@ func uniqueSlug(db *gorm.DB, base, excludeID string) string {
 		if err := q.First(&existing).Error; errors.Is(err, gorm.ErrRecordNotFound) {
 			return candidate
 		}
-		candidate = base + "-" + itoa(i)
+		candidate = base + "-" + strconv.Itoa(i)
 	}
-	return base + "-" + itoa(int(time.Now().UnixNano()%10_000))
-}
-
-func itoa(n int) string {
-	// tiny — avoids importing strconv just for this
-	if n == 0 {
-		return "0"
-	}
-	neg := false
-	if n < 0 {
-		neg = true
-		n = -n
-	}
-	var digits [12]byte
-	i := len(digits)
-	for n > 0 {
-		i--
-		digits[i] = byte('0' + n%10)
-		n /= 10
-	}
-	if neg {
-		i--
-		digits[i] = '-'
-	}
-	return string(digits[i:])
+	return base + "-" + strconv.Itoa(int(time.Now().UnixNano()%10_000))
 }
 
 // excerptFromContent strips the leading markdown noise (headings, code fences)
@@ -172,9 +154,12 @@ func GetWikiPost(db *gorm.DB) gin.HandlerFunc {
 
 		key := c.Param("key") // slug or id
 		var post models.WikiPost
-		// Try by slug first, then by id.
+		// Try by slug first, then by id — but only attempt the id lookup when the
+		// key actually looks like a uuid. `WHERE id = 'no-such-post'` against a
+		// uuid column is a Postgres type error, not a miss, so every unknown slug
+		// used to fall through to a 500 instead of a 404.
 		err := db.Where("slug = ?", key).First(&post).Error
-		if errors.Is(err, gorm.ErrRecordNotFound) {
+		if errors.Is(err, gorm.ErrRecordNotFound) && uuidRe.MatchString(key) {
 			err = db.Where("id = ?", key).First(&post).Error
 		}
 		if errors.Is(err, gorm.ErrRecordNotFound) {

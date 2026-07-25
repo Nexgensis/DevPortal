@@ -11,7 +11,11 @@ type AuditLog struct {
 	UserID      string         `gorm:"type:uuid;not null" json:"userId"`
 	Username    string         `gorm:"not null" json:"username"`
 	Action      string         `gorm:"not null" json:"action"` // "start_app", "stop_app", "create_app", etc.
-	ResourceID  string         `gorm:"type:uuid" json:"resourceId"` // App ID, Server ID, etc.
+	// ResourceID is not always a uuid: auth events record no resource at all,
+	// and PostgreSQL credential events are keyed by container name. Typed text
+	// so those inserts succeed — as uuid, Postgres rejected them outright and
+	// the events went unrecorded.
+	ResourceID  string         `gorm:"type:text" json:"resourceId"` // App ID, Server ID, container name, or ""
 	ResourceType string        `gorm:"not null" json:"resourceType"` // "app", "server", "project"
 	ResourceName string        `gorm:"not null" json:"resourceName"` // App name, Server name, etc.
 	Details     string         `json:"details"` // Additional details like duration, etc.

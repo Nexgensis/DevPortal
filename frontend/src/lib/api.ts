@@ -46,13 +46,6 @@ export const authApi = {
         return handleResponse(response);
     },
 
-    async logout(): Promise<{ message: string }> {
-        const response = await fetch(`${API_BASE}/auth/logout`, {
-            method: 'POST',
-            headers: getAuthHeaders(),
-        });
-        return handleResponse(response);
-    },
 };
 
 // Server API

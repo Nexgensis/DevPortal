@@ -23,7 +23,15 @@ docker compose -f docker-compose.dev.yml down
 docker compose -f docker-compose.dev.yml down -v
 ```
 
-Then open **http://localhost:3000**. Sign in with the seeded admin: `sourav` / `sourav+1`.
+Then open **http://localhost:3000** and click **Admin login**.
+
+The admin account is seeded only when the `users` table is empty. Set
+`ADMIN_USERNAME` / `ADMIN_PASSWORD` in a local `.env`, or leave them unset and
+the backend generates a password and prints it once on first boot:
+
+```bash
+docker compose -f docker-compose.dev.yml logs api | grep -A2 "initial admin"
+```
 
 The frontend dev server proxies `/api/*` to the `api` service, so there's no CORS dance.
 

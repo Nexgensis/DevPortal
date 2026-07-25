@@ -33,6 +33,27 @@ func CreateApp(db *gorm.DB) gin.HandlerFunc {
 	}
 }
 
+// updateAppRequest is the accepted shape for PUT /apps/:id. Binding this
+// instead of models.App is deliberate. models.App also carries Status,
+// StartedAt and TimerEndsAt, which are owned by StartApp/StopApp and the timer
+// service — binding the model let a caller flip Status to "running" with no
+// container actually started. It also let any authenticated user (this route
+// sits in the auth group, not admin) repoint ComposePath/ServerID at someone
+// else's compose project and then drive it via start/stop.
+//
+// Pointers distinguish "field absent" from "field set to zero", so
+// autoStopTimeout: 0 (run until stopped by hand) isn't read as "omitted".
+type updateAppRequest struct {
+	// Admin-only — where the app lives and what it points at.
+	Name        *string `json:"name"`
+	Domain      *string `json:"domain"`
+	ComposePath *string `json:"cdPath"`
+	ProjectID   *string `json:"projectId"`
+	ServerID    *string `json:"serverId"`
+	// Any authenticated user — the runtime control on the app card.
+	AutoStopTimeout *int `json:"autoStopTimeout"`
+}
+
 func UpdateApp(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Param("id")
@@ -42,44 +63,55 @@ func UpdateApp(db *gorm.DB) gin.HandlerFunc {
 			return
 		}
 
-		var input models.App
+		var input updateAppRequest
 		if err := c.ShouldBindJSON(&input); err != nil {
 			respondWithError(c, http.StatusBadRequest, err.Error())
 			return
 		}
 
-		// Check if we're updating the autoStopTimeout
-		isUpdatingTimeout := input.AutoStopTimeout != app.AutoStopTimeout
-		
-		// If updating autoStopTimeout and app is running, recalculate timerEndsAt
-		if app.Status == "running" && app.StartedAt != nil && isUpdatingTimeout {
-			if input.AutoStopTimeout > 0 {
-				// Calculate new timer end time from NOW (not from start time)
-				timerEnd := time.Now().Add(time.Duration(input.AutoStopTimeout) * time.Minute).UnixMilli()
-				app.TimerEndsAt = &timerEnd
-				app.AutoStopTimeout = input.AutoStopTimeout
-				
-				// Save the updated timer
-				db.Model(&app).Updates(map[string]interface{}{
-					"timer_ends_at": timerEnd,
-					"auto_stop_mins": input.AutoStopTimeout,
-				})
-			} else if input.AutoStopTimeout == 0 {
-				// Infinite runtime (0)
-				app.TimerEndsAt = nil
-				app.AutoStopTimeout = 0
-				
-				// Save the updated timer (use gorm.Expr to set NULL)
-				db.Model(&app).Updates(map[string]interface{}{
-					"timer_ends_at": gorm.Expr("NULL"),
-					"auto_stop_mins": 0,
-				})
+		updates := map[string]interface{}{}
+
+		// A non-admin's placement fields are ignored rather than rejected: the
+		// app card sends only autoStopTimeout, so a 403 here would break the
+		// legitimate path if the client ever posts the whole object back.
+		if claimRole(c) == "admin" {
+			if input.Name != nil {
+				updates["name"] = *input.Name
 			}
-		} else {
-			// For stopped apps or other updates, just update normally
-			db.Model(&app).Updates(input)
+			if input.Domain != nil {
+				updates["domain"] = *input.Domain
+			}
+			if input.ComposePath != nil {
+				updates["compose_path"] = *input.ComposePath
+			}
+			if input.ProjectID != nil {
+				updates["project_id"] = *input.ProjectID
+			}
+			if input.ServerID != nil {
+				updates["server_id"] = *input.ServerID
+			}
 		}
-		
+
+		if input.AutoStopTimeout != nil && *input.AutoStopTimeout != app.AutoStopTimeout {
+			updates["auto_stop_mins"] = *input.AutoStopTimeout
+			// Re-arm a running app's auto-stop clock from now, not from its
+			// original start time. 0 means run until stopped by hand.
+			if app.Status == "running" && app.StartedAt != nil {
+				if *input.AutoStopTimeout > 0 {
+					updates["timer_ends_at"] = time.Now().Add(time.Duration(*input.AutoStopTimeout) * time.Minute).UnixMilli()
+				} else {
+					updates["timer_ends_at"] = gorm.Expr("NULL")
+				}
+			}
+		}
+
+		if len(updates) > 0 {
+			if err := db.Model(&app).Updates(updates).Error; err != nil {
+				respondWithError(c, http.StatusInternalServerError, "Failed to update app")
+				return
+			}
+		}
+
 		// Reload the app to get all updated values
 		db.First(&app, "id = ?", id)
 		c.JSON(http.StatusOK, app)

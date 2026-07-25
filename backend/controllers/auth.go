@@ -20,13 +20,6 @@ type LoginInput struct {
 	Password string `json:"password" binding:"required"`
 }
 
-type RegisterInput struct {
-	Username        string `json:"username" binding:"required"`
-	Email           string `json:"email" binding:"required,email"`
-	Password        string `json:"password" binding:"required,min=6"`
-	ConfirmPassword string `json:"confirm_password" binding:"required"`
-}
-
 func Login(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var input LoginInput
@@ -47,12 +40,24 @@ func Login(db *gorm.DB) gin.HandlerFunc {
 			return
 		}
 
-		log.Printf("Found user: %s, checking password", user.Username)
 		if !utils.CheckPasswordHash(input.Password, user.PasswordHash) {
 			log.Printf("Password check failed for user: %s", user.Username)
 			respondWithError(c, http.StatusUnauthorized, "Invalid credentials")
 			return
 		}
+
+		// A deactivated account must not be able to log in — otherwise the admin
+		// UI's "active" toggle is decorative. Same generic message as a bad
+		// password so the endpoint doesn't confirm which usernames exist.
+		if !user.IsActive {
+			log.Printf("Login refused for deactivated user: %s", user.Username)
+			respondWithError(c, http.StatusUnauthorized, "Invalid credentials")
+			return
+		}
+
+		// Record the successful login (column is last_login_at; see models.User).
+		now := time.Now()
+		db.Model(&user).UpdateColumn("last_login_at", now)
 		log.Printf("Login successful for user: %s", user.Username)
 
 		expiresAt := time.Now().Add(time.Hour * 24).Unix()
@@ -62,11 +67,8 @@ func Login(db *gorm.DB) gin.HandlerFunc {
 			"exp":      expiresAt,
 		})
 
-		secret := os.Getenv("JWT_SECRET")
-		if secret == "" {
-			secret = "YOUR_SECRET_KEY" // Fallback for development
-		}
-		tokenString, err := token.SignedString([]byte(secret))
+		// No fallback: JWT_SECRET is validated at startup in main().
+		tokenString, err := token.SignedString([]byte(os.Getenv("JWT_SECRET")))
 		if err != nil {
 			respondWithError(c, http.StatusInternalServerError, "Could not generate token")
 			return
@@ -97,35 +99,5 @@ func Verify(db *gorm.DB) gin.HandlerFunc {
 				"role":     user.Role,
 			},
 		})
-	}
-}
-
-func Register(db *gorm.DB) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		var input RegisterInput
-		if err := c.ShouldBindJSON(&input); err != nil {
-			respondWithError(c, http.StatusBadRequest, err.Error())
-			return		}
-
-		if input.Password != input.ConfirmPassword {
-			respondWithError(c, http.StatusBadRequest, "Passwords do not match")
-			return		}
-
-		hashedPassword, err := utils.HashPassword(input.Password)
-		if err != nil {
-			respondWithError(c, http.StatusInternalServerError, "Could not hash password")
-			return		}
-
-		user := models.User{
-			Username:     input.Username, 
-			Email:        input.Email, 
-			PasswordHash: hashedPassword,
-			Role:         "user", // Default role
-		}
-		if result := db.Create(&user); result.Error != nil {
-			respondWithError(c, http.StatusInternalServerError, "Could not create user")
-			return		}
-
-		c.JSON(http.StatusCreated, gin.H{"message": "User registered successfully"})
 	}
 }

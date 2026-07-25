@@ -17,13 +17,12 @@ func JWT() gin.HandlerFunc {
 			return
 		}
 		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
-		secret := os.Getenv("JWT_SECRET")
-		if secret == "" {
-			secret = "YOUR_SECRET_KEY" // Fallback for development
-		}
+		// No fallback: JWT_SECRET is validated at startup in main(). Pinning the
+		// signing method rejects alg-substitution attempts outright rather than
+		// relying on the key type to make them fail.
 		token, err := jwt.Parse(tokenString, func(t *jwt.Token) (interface{}, error) {
-			return []byte(secret), nil
-		})
+			return []byte(os.Getenv("JWT_SECRET")), nil
+		}, jwt.WithValidMethods([]string{"HS256"}))
 		if err != nil || !token.Valid {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token"})
 			c.Abort()

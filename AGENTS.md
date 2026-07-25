@@ -247,13 +247,16 @@ Login page supports **Microsoft SSO** (primary) and a **password fallback** (the
 
 ## 6. Auth, default credentials, SSO
 
-**Default seeded admin** (created by [backend/migrations/001_create_default_users.go](backend/migrations/001_create_default_users.go) on first boot if `users` table is empty):
+**Seeded break-glass admin** (created by [backend/services/user_service.go](backend/services/user_service.go) on first boot, only if the `users` table is empty):
 
 | Field | Value |
 |---|---|
-| Username | `sourav` |
-| Password | `sourav+1` |
+| Username | `ADMIN_USERNAME` env, default `admin` |
+| Password | `ADMIN_PASSWORD` env; if unset, randomly generated and logged **once** on first boot |
+| Email | `ADMIN_EMAIL` env, default `<username>@localhost` |
 | Role | `admin` |
+
+No credential is hardcoded. A supplied `ADMIN_PASSWORD` is never written to the logs.
 
 **JWT**: secret comes from `JWT_SECRET` env var, expiry 7 days, claims `{ username, role, exp }`.
 
@@ -446,7 +449,9 @@ Full dev-stack walkthrough in [DOCKER_DEV.md](DOCKER_DEV.md).
 docker compose -f docker-compose.dev.yml build
 docker compose -f docker-compose.dev.yml up -d
 ```
-Open http://localhost:3000 → click **Admin login** → username `sourav`, password `sourav+1`.
+Open http://localhost:3000 → click **Admin login**. For credentials, set
+`ADMIN_USERNAME`/`ADMIN_PASSWORD` in a local `.env`, or read the generated one from
+`docker compose -f docker-compose.dev.yml logs api | grep -A2 "initial admin"`.
 
 ### Day-to-day
 ```bash
@@ -474,7 +479,7 @@ These are the values currently in `docker-compose.dev.yml` and the seeded admin 
 | `POSTGRES_USER` | `postgres` | db service |
 | `POSTGRES_PASSWORD` | `nexgensis` | db service + backend DSN |
 | `POSTGRES_DB` | `webmanager` | db service |
-| `DB_DSN` | `postgres://postgres:nexgensis@db:5432/webmanager?sslmode=disable` | backend |
+| `DB_DSN` | `postgres://postgres:${POSTGRES_PASSWORD:-devpassword}@db:5432/webmanager?sslmode=disable` | backend |
 | `JWT_SECRET` | `dev-only-secret-do-not-use-in-prod` | backend (token signing) |
 | `ENCRYPTION_KEY` | `12345678901234567890123456789012` (32 chars, AES-256) | backend (encrypts the client TLS private key in `servers.tls_key_encrypted`) |
 | `NEXUS_URL` / `NEXUS_USER` / `NEXUS_PASS` | empty in dev (poller idle) | backend Security Scan Report poller — Sonatype Nexus base URL + Basic-auth creds. Empty `NEXUS_URL` ⇒ poller does nothing. |
@@ -484,9 +489,13 @@ These are the values currently in `docker-compose.dev.yml` and the seeded admin 
 | `VITE_DEV_API_PROXY` | `http://api:8080` | frontend (Vite proxy target) |
 | `IN_DOCKER` | `1` | frontend (suppresses Vite auto-open) |
 | `CHOKIDAR_USEPOLLING` | `true` | frontend (file watch polling for Docker volumes) |
-| Default admin login | `sourav` / `sourav+1` | seeded by `001_create_default_users.go` |
+| `ADMIN_USERNAME` / `ADMIN_PASSWORD` | unset | backend (seeds the first admin; password generated + logged once if blank) |
 
-The prod compose uses different (real) values for `JWT_SECRET`, the SSO secrets, etc. — see `docker-compose.yml`.
+Secrets are **never** inlined in either compose file — both read them from the
+environment, and `docker-compose.yml` uses `${VAR:?}` so a missing secret stops
+the stack rather than booting with an empty one. Copy `.env.example` to `.env`
+(gitignored) and fill it in. `JWT_SECRET` and `ENCRYPTION_KEY` are required; the
+backend refuses to start without them.
 
 ---
 

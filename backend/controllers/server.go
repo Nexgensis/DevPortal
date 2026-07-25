@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"net/http"
+	"sync"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -227,8 +228,23 @@ func RefreshAllServers(db *gorm.DB) gin.HandlerFunc {
 		var servers []models.Server
 		db.Find(&servers)
 
+		// Probe every server concurrently. Each probe costs up to 13s of
+		// timeouts (5s TCP dial + 8s Docker ping), so doing this serially made
+		// the request take 13s x offline-server-count — over two minutes for a
+		// fleet of ten. Wall-clock is now that of the slowest single probe.
+		var wg sync.WaitGroup
 		for i := range servers {
-			services.UpdateServerStatus(&servers[i])
+			wg.Add(1)
+			go func(s *models.Server) {
+				defer wg.Done()
+				services.UpdateServerStatus(s)
+			}(&servers[i])
+		}
+		wg.Wait()
+
+		// Writes stay on this goroutine: gorm.DB is safe to share, but keeping
+		// the saves serial avoids N concurrent connections for a cheap update.
+		for i := range servers {
 			db.Save(&servers[i])
 			markPGHasPassword(&servers[i])
 		}

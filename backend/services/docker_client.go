@@ -4,6 +4,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+	"net"
 	"net/http"
 	"time"
 
@@ -53,6 +54,14 @@ func NewDockerClient(server *models.Server) (*client.Client, error) {
 		Transport: &http.Transport{
 			TLSClientConfig:     tlsConfig,
 			TLSHandshakeTimeout: 10 * time.Second,
+			// Bound the TCP connect. A host that is powered off or firewalled
+			// with DROP never completes the handshake and never sends a RST, so
+			// without this the dial blocks until the OS gives up (minutes) and
+			// endpoints like /running-apps hang with no response at all.
+			DialContext: (&net.Dialer{
+				Timeout:   5 * time.Second,
+				KeepAlive: 30 * time.Second,
+			}).DialContext,
 		},
 		// No overall timeout: dumps can stream for a long time. Per-operation
 		// deadlines are enforced by the context passed to each SDK call.

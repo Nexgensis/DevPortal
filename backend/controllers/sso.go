@@ -297,18 +297,21 @@ func findOrCreateUser(db *gorm.DB, userInfo *MicrosoftUserInfo) (*models.User, e
 		return nil, result.Error
 	}
 
-	// Update last login
-	db.Model(&user).Update("last_login", time.Now().Unix())
+	// Update last login. The column is last_login_at (models.User.LastLoginAt,
+	// a *time.Time) — the previous "last_login" named no existing column, so
+	// every call failed and the discarded error hid it.
+	if err := db.Model(&user).UpdateColumn("last_login_at", time.Now()).Error; err != nil {
+		log.Printf("failed to record last login for %s: %v", user.Username, err)
+	}
 
 	return &user, nil
 }
 
-// Generate JWT token for user
+// Generate JWT token for user. JWT_SECRET is validated at startup in main(),
+// so there is no fallback here — a per-file default is how this drifted out of
+// sync with the middleware and silently rejected every SSO token.
 func generateJWT(user *models.User) (string, error) {
 	secret := os.Getenv("JWT_SECRET")
-	if secret == "" {
-		secret = "your-secret-key"
-	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"user_id":  user.ID,
