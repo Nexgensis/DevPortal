@@ -6,6 +6,7 @@ import {
   Upload, Image as ImageIcon, Link as LinkIcon, Loader2,
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
+import { useRoute } from '../hooks/useRoute';
 import { useWikiList, useWikiPost, useWikiMutations, uploadWikiImage } from '../hooks/useWiki';
 import { toast } from 'sonner';
 import { WikiPost, WikiPostInput, splitTags } from '../types/wiki';
@@ -126,23 +127,24 @@ const sortedFolderPosts = (node: WikiTreeNode): WikiPost[] =>
 // Inside browse, `selectedSlug` toggles between the feed (latest posts) and the
 // detail view of a single post — sidebar stays mounted the whole time so
 // switching posts feels instant.
-type Mode =
-  | { kind: 'browse'; selectedSlug: string | null }
-  | { kind: 'editor'; postId: string | null };
-
+// Wiki position now lives in the URL (see hooks/useRoute) so a post can be
+// linked, bookmarked and reached with Back — `mode` is derived from the route
+// rather than held in local state.
 export const Wiki = () => {
   const { user, isAdmin } = useAuth();
-  const [mode, setMode] = useState<Mode>({ kind: 'browse', selectedSlug: null });
+  const { route, navigate } = useRoute();
+  const mode = route.wiki;
 
-  const openPost = (slug: string) => setMode({ kind: 'browse', selectedSlug: slug });
-  const showFeed = () => setMode({ kind: 'browse', selectedSlug: null });
-  const openEditor = (postId: string | null) => setMode({ kind: 'editor', postId });
+  const openPost = (slug: string) => navigate({ view: 'wiki', wiki: { kind: 'post', slug } });
+  const showFeed = () => navigate({ view: 'wiki', wiki: { kind: 'feed' } });
+  const openEditor = (postId: string | null) =>
+    navigate({ view: 'wiki', wiki: postId ? { kind: 'edit', postId } : { kind: 'new' } });
 
-  if (mode.kind === 'editor') {
+  if (mode.kind === 'new' || mode.kind === 'edit') {
     return (
       <WikiEditor
-        postId={mode.postId}
-        onCancel={() => setMode({ kind: 'browse', selectedSlug: null })}
+        postId={mode.kind === 'edit' ? mode.postId : null}
+        onCancel={showFeed}
         onSaved={(post) => openPost(post.slug)}
       />
     );
@@ -150,7 +152,7 @@ export const Wiki = () => {
 
   return (
     <WikiBrowse
-      selectedSlug={mode.selectedSlug}
+      selectedSlug={mode.kind === 'post' ? mode.slug : null}
       onSelectPost={openPost}
       onShowFeed={showFeed}
       onNewPost={() => openEditor(null)}

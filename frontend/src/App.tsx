@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useRoute, buildUrl, DEFAULT_VIEW, type View, type ConfigTab } from './hooks/useRoute';
 import { useApps } from './hooks/useApps';
 import { useServers } from './hooks/useServers';
 import { useProjects } from './hooks/useProjects';
@@ -37,7 +38,7 @@ const VIEW_META: Record<'applications' | 'config' | 'database-dump' | 'security-
 };
 
 // Config groups three admin sections behind one tab; each sub-tab keeps its own header copy.
-type ConfigTab = 'infrastructure' | 'users' | 'scan-sources' | 'audit-logs';
+// The ConfigTab union lives in useRoute so the URL parser and the UI can't drift.
 const CONFIG_TABS: Record<ConfigTab, { title: string; subtitle: string; icon: LucideIcon }> = {
   infrastructure: { title: 'Infrastructure', subtitle: 'Manage server connections and project groupings', icon: ServerIcon },
   users: { title: 'Users', subtitle: 'Manage user accounts, roles, and access', icon: UsersIcon },
@@ -54,8 +55,15 @@ export default function App() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingApp, setEditingApp] = useState<App | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeView, setActiveView] = useState<'applications' | 'config' | 'database-dump' | 'security-scan' | 'running-apps' | 'wiki'>('database-dump');
-  const [configTab, setConfigTab] = useState<ConfigTab>('infrastructure');
+
+  // Navigation lives in the URL, so Back/Forward, refresh and shared links all
+  // work. These names are kept so the rest of the component reads unchanged.
+  const { route, navigate } = useRoute();
+  const activeView = route.view;
+  const configTab = route.configTab;
+  const setActiveView = (view: View) => navigate({ view });
+  const setConfigTab = (tab: ConfigTab) => navigate({ view: 'config', configTab: tab });
+
   const [serverDialogTrigger, setServerDialogTrigger] = useState(0);
   const [projectDialogTrigger, setProjectDialogTrigger] = useState(0);
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
@@ -90,6 +98,22 @@ export default function App() {
       handleSSO();
     }
   }, [setAuthToken]);
+
+  // Normalise the URL once the session is known: "/" or an unknown path becomes
+  // the default view, and a non-admin who deep-links to /config is bounced out.
+  // Both use replace so Back doesn't return to the path we just redirected away
+  // from and bounce forward again.
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    if (window.location.pathname.includes('/auth/callback')) return;
+    if (route.view === 'config' && !isAdmin) {
+      navigate({ view: DEFAULT_VIEW }, { replace: true });
+      return;
+    }
+    if (buildUrl(route) !== window.location.pathname + window.location.search) {
+      navigate({}, { replace: true });
+    }
+  }, [isAuthenticated, isAdmin, route, navigate]);
 
   // Check if we're on the auth callback route
   const isAuthCallback = window.location.pathname.includes('/auth/callback') ||
@@ -130,20 +154,19 @@ export default function App() {
     setActiveView('database-dump');
   };
 
+  // One navigate() per action: setting the tab and the view separately would
+  // push two history entries, so Back would need two presses to leave.
   const handleNavigateToAdministration = () => {
-    setConfigTab('infrastructure');
-    setActiveView('config');
+    navigate({ view: 'config', configTab: 'infrastructure' });
   };
 
   const handleAddServerFromOverview = () => {
-    setConfigTab('infrastructure');
-    setActiveView('config');
+    navigate({ view: 'config', configTab: 'infrastructure' });
     setTimeout(() => setServerDialogTrigger(prev => prev + 1), 100);
   };
 
   const handleAddProjectFromOverview = () => {
-    setConfigTab('infrastructure');
-    setActiveView('config');
+    navigate({ view: 'config', configTab: 'infrastructure' });
     setTimeout(() => setProjectDialogTrigger(prev => prev + 1), 100);
   };
 

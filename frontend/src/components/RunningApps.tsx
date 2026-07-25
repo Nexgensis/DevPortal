@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useServers } from '../hooks/useServers';
+import { useRoute } from '../hooks/useRoute';
 import { useServerStats } from '../hooks/useServerStats';
 import { useRunningApps } from '../hooks/useRunningApps';
 import { useAuth } from '../hooks/useAuth';
@@ -346,7 +347,12 @@ export const RunningApps = () => {
   const theme = useTheme();
   const isDark = theme === 'dark';
 
-  const [selectedServer, setSelectedServer] = useState<string>('');
+  // Server selection lives in the URL (?server=<id>) so the view is linkable
+  // and Back returns to the picker instead of leaving the app.
+  const { route, navigate } = useRoute();
+  const selectedServer = route.server ?? '';
+  const setSelectedServer = (id: string) => navigate({ server: id || null });
+
   const [projects, setProjects] = useState<ProjectGroup[]>([]);
   const [pinnedGroups, setPinnedGroups] = useState<string[]>([]);
   const [pinBusy, setPinBusy] = useState<string | null>(null); // groupName currently toggling

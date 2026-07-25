@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { usePostgres } from '../hooks/usePostgres';
 import { useServers } from '../hooks/useServers';
+import { useRoute } from '../hooks/useRoute';
 import { useServerStats } from '../hooks/useServerStats';
 import { useAuth } from '../hooks/useAuth';
 import { PostgresContainer, PostgresDatabase, PostgresCredential, PostgresContainerContext } from '../types/postgres';
@@ -96,7 +97,12 @@ export const PostgresManager = () => {
   const { isAdmin } = useAuth();
   const { data: dumpStats, loading: dumpStatsLoading, reload: reloadDumpStats } = useDumpStats();
 
-  const [selectedServer, setSelectedServer] = useState<string>('');
+  // Server selection lives in the URL (?server=<id>) so the view is linkable
+  // and Back returns to the picker instead of leaving the app.
+  const { route, navigate } = useRoute();
+  const selectedServer = route.server ?? '';
+  const setSelectedServer = (id: string) => navigate({ server: id || null });
+
   const [containers, setContainers] = useState<PostgresContainer[]>([]);
   const [selectedContainer, setSelectedContainer] = useState<string>('');
   const [databases, setDatabases] = useState<PostgresDatabase[]>([]);
