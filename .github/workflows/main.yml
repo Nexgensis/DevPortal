@@ -10,27 +10,27 @@ permissions:
   packages: write
   contents: write
   pull-requests: read
-  issues: read 
+  issues: read
 
 jobs:
   backend:
     name: Backend
     uses: Nexgensis/github-actions/.github/workflows/docker-build.yml@main
     with:
-      image_name: webmanager-backend
+      image: ghcr.io/nexgensis/webmanager-backend
       context: backend
       dockerfile: backend/Dockerfile
-      branch: main
+      push: true
       environment: Staging
 
   frontend:
     name: Frontend
     uses: Nexgensis/github-actions/.github/workflows/docker-build.yml@main
     with:
-      image_name: webmanager-frontend
+      image: ghcr.io/nexgensis/webmanager-frontend
       context: frontend
       dockerfile: frontend/Dockerfile
-      branch: main
+      push: true
       environment: Staging
 
   deploy:
@@ -38,20 +38,10 @@ jobs:
     needs: [backend, frontend]
     uses: Nexgensis/github-actions/.github/workflows/deploy.yml@main
     with:
-      cd_path: /root/qms/ops-iq
-      image_tag: latest
+      cd_path: /root/webmanager
+      image_tag: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'latest' }}
       environment: Staging
     secrets:
       host: ${{ secrets.DEMO_SERVER_IP }}
-      ssh_key: ${{ secrets.SERVER_SSH_KEY }}
-      username: root
-  
-  cleanup:
-    needs: [deploy]
-    uses: Nexgensis/github-actions/.github/workflows/cleanup-docker-images.yml@main
-    with:
-      environment: Staging
-    secrets:
-      host: ${{ secrets.DEMO_SERVER_IP }} 
       ssh_key: ${{ secrets.SERVER_SSH_KEY }}
       username: root
