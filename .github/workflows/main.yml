@@ -7,41 +7,58 @@ on:
   workflow_dispatch:
 
 permissions:
+  contents: read
   packages: write
-  contents: write
-  pull-requests: read
-  issues: read
+
+env:
+  # tag builds deploy the tag itself; manual dispatch deploys :latest
+  TAG: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'latest' }}
 
 jobs:
-  backend:
-    name: Backend
-    uses: Nexgensis/github-actions/.github/workflows/docker-build.yml@main
-    with:
-      image: ghcr.io/nexgensis/webmanager-backend
-      context: backend
-      dockerfile: backend/Dockerfile
-      push: true
-      environment: Staging
+  build:
+    name: Build ${{ matrix.component }}
+    runs-on: self-hosted
+    environment: Staging
+    strategy:
+      matrix:
+        component: [backend, frontend]
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
 
-  frontend:
-    name: Frontend
-    uses: Nexgensis/github-actions/.github/workflows/docker-build.yml@main
-    with:
-      image: ghcr.io/nexgensis/webmanager-frontend
-      context: frontend
-      dockerfile: frontend/Dockerfile
-      push: true
-      environment: Staging
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: ${{ matrix.component }}
+          file: ${{ matrix.component }}/Dockerfile
+          push: true
+          tags: ghcr.io/nexgensis/webmanager-${{ matrix.component }}:${{ env.TAG }}
+          cache-from: type=gha,scope=${{ matrix.component }}
+          cache-to: type=gha,mode=min,ignore-error=true,scope=${{ matrix.component }}
 
   deploy:
     name: Deploy
-    needs: [backend, frontend]
-    uses: Nexgensis/github-actions/.github/workflows/deploy.yml@main
-    with:
-      cd_path: /root/webmanager
-      image_tag: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'latest' }}
-      environment: Staging
-    secrets:
-      host: ${{ secrets.DEMO_SERVER_IP }}
-      ssh_key: ${{ secrets.SERVER_SSH_KEY }}
-      username: root
+    needs: [build]
+    runs-on: self-hosted
+    environment: Staging
+    steps:
+      - name: Pull and restart on the server
+        uses: appleboy/ssh-action@v1.2.3
+        with:
+          host: ${{ secrets.DEMO_SERVER_IP }}
+          username: root
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          script: |
+            set -e
+            cd /root/webmanager
+            sed -i "s|\(ghcr.io/nexgensis/webmanager-[a-z]*\):[^ \"]*|\1:${{ env.TAG }}|g" docker-compose.yml
+            docker compose pull
+            docker compose down
+            docker compose up -d --force-recreate
+            echo "✅ Deployed ${{ env.TAG }}"
