@@ -15,7 +15,7 @@ permissions:
 jobs:
   backend:
     name: Backend
-    uses: Nexgensis/github-actions/.github/workflows/docker-image-build.yml@main
+    uses: Nexgensis/github-actions/.github/workflows/docker-build.yml@main
     with:
       image_name: webmanager-backend
       context: backend
@@ -25,7 +25,7 @@ jobs:
 
   frontend:
     name: Frontend
-    uses: Nexgensis/github-actions/.github/workflows/docker-image-build.yml@main
+    uses: Nexgensis/github-actions/.github/workflows/docker-build.yml@main
     with:
       image_name: webmanager-frontend
       context: frontend
@@ -38,11 +38,8 @@ jobs:
     needs: [backend, frontend]
     uses: Nexgensis/github-actions/.github/workflows/deploy.yml@main
     with:
-      cd_path: /root/webmanager
-      image_backend: webmanager-backend
-      image_frontend_1: webmanager-frontend
-      other_container: webmanager
-      frontend_port: "10000"
+      cd_path: /root/qms/ops-iq
+      image_tag: latest
       environment: Staging
     secrets:
       host: ${{ secrets.DEMO_SERVER_IP }}
@@ -58,17 +55,3 @@ jobs:
       host: ${{ secrets.DEMO_SERVER_IP }} 
       ssh_key: ${{ secrets.SERVER_SSH_KEY }}
       username: root
-
-  # release-notes:
-  #   needs: [cleanup]
-  #   uses: Nexgensis/github-actions/.github/workflows/release-notes.yml@main
-  
-  # release-email:
-  #   needs: release-notes
-  #   uses: Nexgensis/github-actions/.github/workflows/release-email.yml@main
-  #   with:
-  #     tag: ${{ needs.release-notes.outputs.tag }}
-  #     environment: Staging
-  #   secrets:
-  #     EMAIL_USER: ${{ secrets.EMAIL_USER }}
-  #     EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
