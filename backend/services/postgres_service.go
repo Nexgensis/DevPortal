@@ -22,6 +22,11 @@ import (
 // every image authenticates as this over the local Unix socket (peer auth).
 const defaultAdminRole = "postgres"
 
+// maintenanceDB is the always-present database to fall back to when the
+// conventional "postgres" database is absent. initdb creates template1 in every
+// cluster and it cannot be dropped.
+const maintenanceDB = "template1"
+
 // validRoleName guards the dynamically-discovered superuser name. The value
 // comes from inspecting the container's process list, so we only accept a sane
 // PostgreSQL/OS identifier (letters, digits, underscore, hyphen; ≤63 chars, the
@@ -269,6 +274,16 @@ func (s *PostgresService) credAttempts(server *models.Server, creds *PostgresCre
 	if sc := serverLevelCreds(server); sc.isSet() {
 		u, d, p := sc.effective()
 		attempts = append(attempts, credAttempt{osUser: "root", env: []string{"PGPASSWORD=" + p}, role: u, dbName: d})
+	}
+
+	// A cluster bootstrapped with POSTGRES_DB=<name> may have no "postgres"
+	// database at all, so every attempt above dies on `database "postgres" does
+	// not exist` even with valid credentials. template1 is created by initdb and
+	// cannot be dropped, so retry each identity there — we only need a foothold
+	// to query pg_database, not a specific database.
+	for _, a := range attempts[:len(attempts):len(attempts)] {
+		a.dbName = maintenanceDB
+		attempts = append(attempts, a)
 	}
 	return attempts
 }
