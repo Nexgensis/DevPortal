@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"log"
 	"net/http"
 	"strconv"
 
@@ -44,9 +45,19 @@ func CreateUser(db *gorm.DB) gin.HandlerFunc {
 			return
 		}
 
-		// Check if username already exists
+		// Check if username already exists. Unscoped so soft-deleted rows count:
+		// DeleteUser only sets deleted_at, but the unique index on username still
+		// covers those rows, so a scoped check would pass and the INSERT below
+		// would then fail with an opaque 500.
 		var existingUser models.User
-		if err := db.Where("username = ?", input.Username).First(&existingUser).Error; err == nil {
+		if err := db.Unscoped().Where("username = ?", input.Username).First(&existingUser).Error; err == nil {
+			// A soft-deleted match looks identical to the admin (the name is not
+			// in the user list), so spell that out in the log, not the response.
+			if existingUser.DeletedAt.Valid {
+				log.Printf("create user %q: username already exists on deleted user %s", input.Username, existingUser.ID)
+			} else {
+				log.Printf("create user %q: username already exists", input.Username)
+			}
 			respondWithError(c, http.StatusBadRequest, "Username already exists")
 			return
 		}
@@ -68,6 +79,7 @@ func CreateUser(db *gorm.DB) gin.HandlerFunc {
 		}
 
 		if err := db.Create(&user).Error; err != nil {
+			log.Printf("create user %q: %v", input.Username, err)
 			respondWithError(c, http.StatusInternalServerError, "Could not create user")
 			return
 		}
