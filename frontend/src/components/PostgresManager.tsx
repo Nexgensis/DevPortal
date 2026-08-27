@@ -15,6 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { ServerPickerCard } from './ui/server-picker-card';
 import { DumpStatsStrip } from './DumpStatsStrip';
 import { useDumpStats } from '../hooks/useDumpStats';
+import { playDownload } from '../lib/sound';
 
 // parseContainerStatus splits Docker's "Up X minutes (healthy)" into a concise
 // duration label + a health flag the sidebar can render as a colored dot.
@@ -215,6 +216,7 @@ export const PostgresManager = () => {
   };
 
   const handleDump = async (databaseName: string, dbSize?: string) => {
+    playDownload();
     setDumpingDatabase(databaseName);
     // Seed the progress bar with the parsed db.size as the expected total so
     // the user sees a real percentage immediately, not an indeterminate sweep.
@@ -663,7 +665,12 @@ export const PostgresManager = () => {
           </div>
 
           {/* Split Pane Content */}
-          <div className="flex h-[600px]">
+          {/* Fill the viewport rather than the fixed 600px slab this used to be,
+              which left a tall dead band below the panel on large screens. The
+              26rem subtracted is everything stacked above: app header, tab
+              strip, page title and this card's own header. The floor keeps the
+              container list usable on laptops. */}
+          <div className="flex h-[calc(100dvh-26rem)] min-h-[600px]">
             {/* Left Sidebar - Container List */}
             <div className="w-80 border-r border-[var(--border)] bg-[var(--card-warm)] flex flex-col min-h-0">
               {/* Sticky search header (hidden until containers loaded). */}

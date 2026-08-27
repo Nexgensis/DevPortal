@@ -529,21 +529,23 @@ func (s *PostgresService) RestoreDatabase(
 	_, readErr := stdcopy.StdCopy(&stdoutBuf, &stderrBuf, hijacked.Reader)
 	writeErr := <-writeErrCh
 
-	if writeErr != nil && writeErr != io.EOF {
-		return fmt.Errorf("failed to stream SQL into psql: %w (psql said: %s)", writeErr, strings.TrimSpace(stderrBuf.String()))
-	}
-	if readErr != nil {
-		return fmt.Errorf("psql output stream failed: %w (%s)", readErr, strings.TrimSpace(stderrBuf.String()))
-	}
-
-	// Non-zero exit = psql aborted (ON_ERROR_STOP fired, auth failed, etc.). The
-	// partial database is intentionally left in place for the user to inspect.
+	// Check psql's exit code BEFORE the stream errors. When ON_ERROR_STOP fires
+	// mid-dump, psql exits while we are still writing, so the copy fails with
+	// "connection reset by peer" — a symptom of the SQL error, not a transport
+	// fault. Reporting the write error first buried the real cause.
 	if inspect, ierr := cli.ContainerExecInspect(ctx, execResp.ID); ierr == nil && inspect.ExitCode != 0 {
 		msg := strings.TrimSpace(stderrBuf.String())
 		if msg == "" {
 			msg = strings.TrimSpace(stdoutBuf.String())
 		}
 		return fmt.Errorf("psql exited with code %d (partial DB %q left in place): %s", inspect.ExitCode, targetDB, msg)
+	}
+
+	if writeErr != nil && writeErr != io.EOF {
+		return fmt.Errorf("failed to stream SQL into psql: %w (psql said: %s)", writeErr, strings.TrimSpace(stderrBuf.String()))
+	}
+	if readErr != nil {
+		return fmt.Errorf("psql output stream failed: %w (%s)", readErr, strings.TrimSpace(stderrBuf.String()))
 	}
 
 	return nil

@@ -118,7 +118,10 @@ export const ServerPickerCard = ({ name, address, status, onClick, stats }: Serv
               className="font-bold tracking-tight break-all line-clamp-2"
               style={{
                 fontSize: 'clamp(24px, 10cqw, 40px)',
-                lineHeight: 1.02,
+                // >=1.15, not the 1.02 this used to be: line-clamp draws an
+                // overflow:hidden box exactly line-height tall, so a tighter
+                // value guillotines descenders ("Staging" lost its g tail).
+                lineHeight: 1.15,
                 letterSpacing: '-0.02em',
               }}
             >
