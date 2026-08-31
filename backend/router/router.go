@@ -146,6 +146,10 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
     // container. Multipart upload; refuses if target_database already exists.
     admin.POST("/postgres/restore", controllers.RestorePostgresDump(db))
 
+    // PostgreSQL drop — admin-only and irreversible. Refuses system databases
+    // and any database with live connections.
+    admin.DELETE("/postgres/database", controllers.DropPostgresDatabase(db))
+
     // Security scan report sources (admin only)
     admin.POST("/scan-reports", controllers.CreateScanReport(db))
     admin.PUT("/scan-reports/:id", controllers.UpdateScanReport(db))

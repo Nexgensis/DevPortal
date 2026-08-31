@@ -5,7 +5,7 @@ import { useRoute } from '../hooks/useRoute';
 import { useServerStats } from '../hooks/useServerStats';
 import { useAuth } from '../hooks/useAuth';
 import { PostgresContainer, PostgresDatabase, PostgresCredential, PostgresContainerContext } from '../types/postgres';
-import { Database, Download, Server, Container, ChevronRight, KeyRound, Eye, EyeOff, Search, Upload, FileUp, AlertCircle, FolderOpen, Sparkles } from 'lucide-react';
+import { Database, Download, Server, Container, ChevronRight, KeyRound, Eye, EyeOff, Search, Upload, FileUp, AlertCircle, FolderOpen, Sparkles, Trash2 } from 'lucide-react';
 import { ScrollArea } from './ui/scroll-area';
 import { GlassCard } from './ui/glass-card';
 import { AccentButton } from './ui/accent-button';
@@ -94,7 +94,7 @@ interface DumpProgress {
 export const PostgresManager = () => {
   const { servers, isLoading: serversLoading } = useServers();
   const serverStats = useServerStats(servers);
-  const { getContainers, getDatabases, createDump, restoreDump, getCredentials, saveCredential, deleteCredential, getContainerContext, loading } = usePostgres();
+  const { getContainers, getDatabases, createDump, restoreDump, getCredentials, saveCredential, deleteCredential, getContainerContext, dropDatabase, loading } = usePostgres();
   const { isAdmin } = useAuth();
   const { data: dumpStats, loading: dumpStatsLoading, reload: reloadDumpStats } = useDumpStats();
 
@@ -121,6 +121,13 @@ export const PostgresManager = () => {
   const [restoreStage, setRestoreStage] = useState<'idle' | 'uploading' | 'restoring' | 'success' | 'error'>('idle');
   const [restoreProgress, setRestoreProgress] = useState<{ uploaded: number; total: number } | null>(null);
   const [restoreError, setRestoreError] = useState<string | null>(null);
+
+  // Drop-database confirmation. dropTarget doubles as the dialog's open flag;
+  // dropConfirm must match the database name exactly before the button unlocks.
+  const [dropTarget, setDropTarget] = useState<PostgresDatabase | null>(null);
+  const [dropConfirm, setDropConfirm] = useState('');
+  const [dropping, setDropping] = useState(false);
+  const [dropError, setDropError] = useState<string | null>(null);
 
   // Search filters — case-insensitive substring match on the visible name.
   const [containerSearch, setContainerSearch] = useState('');
@@ -386,6 +393,27 @@ export const PostgresManager = () => {
   const liveDatabases = filteredDatabases.filter((d) => liveDbSet.has(d.name));
   const otherDatabases = filteredDatabases.filter((d) => !liveDbSet.has(d.name));
 
+  const handleDrop = async () => {
+    if (!dropTarget || !selectedServer || !selectedContainer) return;
+    setDropping(true);
+    setDropError(null);
+    try {
+      await dropDatabase({
+        serverId: selectedServer,
+        containerId: selectedContainer,
+        containerName: selectedContainerData?.name,
+        database: dropTarget.name,
+      });
+      setDropTarget(null);
+      setDropConfirm('');
+      await loadDatabases();
+    } catch (err) {
+      setDropError(err instanceof Error ? err.message : 'Drop failed');
+    } finally {
+      setDropping(false);
+    }
+  };
+
   // renderDbCard — the indigo database tile, shared by both columns so the live
   // and "other" grids render identically. Closes over the dump progress state.
   const renderDbCard = (db: PostgresDatabase) => {
@@ -497,15 +525,35 @@ export const PostgresManager = () => {
                 </span>
                 <span className="text-[11px] text-[var(--ink-muted)] uppercase tracking-wider">Database size</span>
               </div>
-              <button
-                type="button"
-                onClick={() => handleDump(db.name, db.size)}
-                disabled={loading}
-                className="inline-flex items-center gap-2 rounded-full bg-[var(--ink)] text-[var(--card)] px-5 py-3 text-sm font-bold hover:opacity-90 transition-opacity disabled:opacity-60 disabled:cursor-not-allowed shadow-[0_6px_16px_rgba(0,0,0,0.18)]"
-              >
-                <Download className="h-4 w-4" />
-                Download
-              </button>
+              <div className="flex items-center gap-2">
+                {/* Destructive and admin-only, so it stays an icon beside the
+                    primary action rather than competing with it. */}
+                {isAdmin && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDropTarget(db);
+                      setDropConfirm('');
+                      setDropError(null);
+                    }}
+                    disabled={loading}
+                    title={`Drop ${db.name}`}
+                    aria-label={`Drop database ${db.name}`}
+                    className="inline-flex items-center justify-center h-11 w-11 rounded-full bg-white/15 text-white hover:bg-[var(--accent-red,#e5484d)] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => handleDump(db.name, db.size)}
+                  disabled={loading}
+                  className="inline-flex items-center gap-2 rounded-full bg-[var(--ink)] text-[var(--card)] px-5 py-3 text-sm font-bold hover:opacity-90 transition-opacity disabled:opacity-60 disabled:cursor-not-allowed shadow-[0_6px_16px_rgba(0,0,0,0.18)]"
+                >
+                  <Download className="h-4 w-4" />
+                  Download
+                </button>
+              </div>
             </div>
           )}
         </div>
@@ -1068,6 +1116,89 @@ export const PostgresManager = () => {
                               )}
                               Restore
                             </AccentButton>
+                          </DialogFooter>
+                        </DialogContent>
+                      </Dialog>
+
+                      {/* Drop Dialog — admin only, irreversible. Requires typing the
+                          database name so a mis-click can't destroy anything, and warns
+                          harder when the target is the live database. The server refuses
+                          system databases and anything with open connections regardless. */}
+                      <Dialog
+                        open={dropTarget !== null}
+                        onOpenChange={(open) => {
+                          if (dropping) return; // don't let the dialog close mid-drop
+                          if (!open) {
+                            setDropTarget(null);
+                            setDropConfirm('');
+                            setDropError(null);
+                          }
+                        }}
+                      >
+                        <DialogContent className="bento-card sm:max-w-[460px]">
+                          <DialogHeader>
+                            <DialogTitle>Drop “{dropTarget?.name}”</DialogTitle>
+                            <DialogDescription>
+                              This permanently deletes the database and everything in it on{' '}
+                              <span className="font-medium text-[var(--ink)]">{selectedContainerData.name}</span>.
+                              There is no undo and no backup is taken — download a dump first if you might need it.
+                            </DialogDescription>
+                          </DialogHeader>
+
+                          {dropTarget && liveDbSet.has(dropTarget.name) && (
+                            <div className="flex items-start gap-2 rounded-xl border border-[var(--border)] bg-[var(--card-warm)] p-3 text-sm">
+                              <AlertCircle className="h-4 w-4 mt-0.5 shrink-0 text-[var(--ink)]" />
+                              <span className="text-[var(--ink-muted)]">
+                                This is the <strong className="text-[var(--ink)]">live</strong> database for this project.
+                                An app is using it right now, so PostgreSQL will refuse the drop until you stop the stack.
+                              </span>
+                            </div>
+                          )}
+
+                          <div className="space-y-2">
+                            <label className="text-sm text-[var(--ink-muted)]">
+                              Type <span className="font-mono text-[var(--ink)]">{dropTarget?.name}</span> to confirm
+                            </label>
+                            <input
+                              type="text"
+                              value={dropConfirm}
+                              onChange={(e) => setDropConfirm(e.target.value)}
+                              autoComplete="off"
+                              spellCheck={false}
+                              placeholder={dropTarget?.name}
+                              className="w-full h-11 px-3 rounded-lg bg-[var(--card)] border border-[var(--border)] font-mono text-sm text-[var(--ink)] placeholder:text-[var(--ink-muted)] focus:outline-none focus:border-[var(--ink)]/30 transition-colors"
+                            />
+                          </div>
+
+                          {dropError && (
+                            <div className="flex items-start gap-2 text-sm text-[var(--ink)]">
+                              <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+                              <span>{dropError}</span>
+                            </div>
+                          )}
+
+                          <DialogFooter>
+                            <button
+                              type="button"
+                              onClick={() => setDropTarget(null)}
+                              disabled={dropping}
+                              className="px-4 py-2 rounded-full text-sm font-medium text-[var(--ink-muted)] hover:text-[var(--ink)] transition-colors disabled:opacity-60"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleDrop}
+                              disabled={dropping || dropConfirm !== dropTarget?.name}
+                              className="inline-flex items-center gap-2 rounded-full bg-[#e5484d] text-white px-5 py-2.5 text-sm font-bold hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
+                            >
+                              {dropping ? (
+                                <span className="h-4 w-4 rounded-full border-2 border-current border-r-transparent animate-spin" />
+                              ) : (
+                                <Trash2 className="h-4 w-4" />
+                              )}
+                              Drop database
+                            </button>
                           </DialogFooter>
                         </DialogContent>
                       </Dialog>

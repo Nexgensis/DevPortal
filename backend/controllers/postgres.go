@@ -427,3 +427,71 @@ func TestPostgresConnection(db *gorm.DB) gin.HandlerFunc {
 		})
 	}
 }
+
+// DropPostgresDatabase permanently deletes a database inside a PostgreSQL
+// container. Admin-only (see router) and irreversible — no dump is taken first.
+//
+// Body (JSON):
+//   - server_id       (required)
+//   - container_id    (required)
+//   - container_name  (optional; used to look up stored credentials)
+//   - database        (required)
+//
+// 400 when the name is invalid or names a system database, 409 when PostgreSQL
+// refuses because sessions are still connected, 500 on container/exec errors.
+func DropPostgresDatabase(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var body struct {
+			ServerID      string `json:"server_id"`
+			ContainerID   string `json:"container_id"`
+			ContainerName string `json:"container_name"`
+			Database      string `json:"database"`
+		}
+		if err := c.ShouldBindJSON(&body); err != nil {
+			respondWithError(c, http.StatusBadRequest, err.Error())
+			return
+		}
+		if body.ServerID == "" || body.ContainerID == "" || body.Database == "" {
+			respondWithError(c, http.StatusBadRequest, "server_id, container_id, and database are required")
+			return
+		}
+
+		var server models.Server
+		if err := db.First(&server, "id = ?", body.ServerID).Error; err != nil {
+			if err == gorm.ErrRecordNotFound {
+				respondWithError(c, http.StatusNotFound, "Server not found")
+				return
+			}
+			respondWithError(c, http.StatusInternalServerError, "Failed to fetch server")
+			return
+		}
+
+		creds, err := resolvePostgresCreds(db, body.ServerID, body.ContainerName)
+		if err != nil {
+			respondWithError(c, http.StatusInternalServerError, "Failed to resolve credentials")
+			return
+		}
+
+		pgService := services.NewPostgresService()
+		if err := pgService.DropDatabase(c.Request.Context(), &server, body.ContainerID, body.Database, creds); err != nil {
+			// Audit the refusal too: an attempted drop is worth a record even
+			// when it did not go through.
+			services.LogAction(db, c, "drop_database", "database", body.ContainerID, body.Database,
+				fmt.Sprintf("Drop refused on %s: %v", body.ContainerName, err))
+			switch err {
+			case services.ErrSystemDatabase:
+				respondWithError(c, http.StatusBadRequest, fmt.Sprintf("%q is a system database and cannot be dropped.", body.Database))
+			case services.ErrDatabaseInUse:
+				respondWithError(c, http.StatusConflict, fmt.Sprintf("Database %q still has open connections — stop the app (or its connection pool) first.", body.Database))
+			default:
+				respondWithError(c, http.StatusInternalServerError, err.Error())
+			}
+			return
+		}
+
+		services.LogAction(db, c, "drop_database", "database", body.ContainerID, body.Database,
+			fmt.Sprintf("Database %q dropped on %s", body.Database, body.ContainerName))
+
+		c.JSON(http.StatusOK, gin.H{"status": "success", "database": body.Database})
+	}
+}

@@ -550,3 +550,66 @@ func (s *PostgresService) RestoreDatabase(
 
 	return nil
 }
+
+// systemDatabases can never be dropped through the portal. Postgres refuses
+// template0/template1 itself, but "postgres" it would happily delete — and that
+// is the maintenance database the credential chain falls back to, so losing it
+// would break listing and restores on the whole container.
+var systemDatabases = map[string]bool{
+	"postgres":  true,
+	"template0": true,
+	"template1": true,
+}
+
+// ErrSystemDatabase is returned when the caller tries to drop a database the
+// portal refuses to touch. Maps to 400.
+var ErrSystemDatabase = fmt.Errorf("system database cannot be dropped")
+
+// ErrDatabaseInUse is returned when PostgreSQL refuses the drop because sessions
+// are still connected. Maps to 409 so the UI can say "stop the app first"
+// instead of showing a raw dropdb error.
+var ErrDatabaseInUse = fmt.Errorf("database has open connections")
+
+// isDatabaseInUseErr keys on dropdb's stable refusal message:
+// `dropdb: error: database removal failed: ERROR: database "x" is being
+// accessed by other users`.
+func isDatabaseInUseErr(stderr string) bool {
+	return strings.Contains(strings.ToLower(stderr), "is being accessed by other users")
+}
+
+// DropDatabase permanently deletes a database inside a PostgreSQL container.
+//
+// There is no undo and no backup taken — the caller is responsible for having
+// dumped anything worth keeping. Two guards stand in front of the drop:
+// systemDatabases is refused outright, and we deliberately do NOT pass
+// --force, so Postgres' own "being accessed by other users" check stands. A
+// database an app is still connected to cannot be dropped out from under it.
+//
+// dropdb connects to template1 rather than the default "postgres": you cannot
+// drop a database you are connected to, and "postgres" may not exist at all on
+// clusters bootstrapped with POSTGRES_DB (see maintenanceDB).
+func (s *PostgresService) DropDatabase(ctx context.Context, server *models.Server, containerID, dbName string, creds *PostgresCreds) error {
+	if !validDBName.MatchString(dbName) {
+		return fmt.Errorf("invalid database name %q (letters, digits, underscore, hyphen only; must start with a letter or underscore; max 63 chars)", dbName)
+	}
+	if systemDatabases[strings.ToLower(dbName)] {
+		return ErrSystemDatabase
+	}
+
+	cli, err := NewDockerClient(server)
+	if err != nil {
+		return err
+	}
+	defer cli.Close()
+
+	role, osUser, env := s.resolveDumpExec(ctx, cli, containerID, server, creds)
+
+	cmd := []string{"dropdb", "-U", role, "--maintenance-db=" + maintenanceDB, dbName}
+	if _, stderr, err := s.execCapture(ctx, cli, containerID, osUser, env, cmd); err != nil {
+		if isDatabaseInUseErr(stderr) {
+			return ErrDatabaseInUse
+		}
+		return fmt.Errorf("dropdb failed: %w (%s)", err, strings.TrimSpace(stderr))
+	}
+	return nil
+}

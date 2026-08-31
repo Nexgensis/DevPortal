@@ -363,6 +363,44 @@ export const usePostgres = () => {
     }
   };
 
+  // Drops a database outright. Admin-only server-side; there is no undo and no
+  // dump is taken first, so callers must confirm hard before calling this.
+  const dropDatabase = async (payload: {
+    serverId: string;
+    containerId: string;
+    containerName?: string;
+    database: string;
+  }): Promise<void> => {
+    setLoading(true);
+    setError(null);
+    try {
+      const token = getAuthToken();
+      const response = await fetch(`${API_BASE}/postgres/database`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          server_id: payload.serverId,
+          container_id: payload.containerId,
+          container_name: payload.containerName,
+          database: payload.database,
+        }),
+      });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || `Drop failed (HTTP ${response.status})`);
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to drop database';
+      setError(message);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return {
     loading,
     error,
@@ -375,5 +413,6 @@ export const usePostgres = () => {
     saveCredential,
     deleteCredential,
     getContainerContext,
+    dropDatabase,
   };
 };
