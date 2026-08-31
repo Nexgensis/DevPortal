@@ -539,7 +539,7 @@ export const PostgresManager = () => {
                     disabled={loading}
                     title={`Drop ${db.name}`}
                     aria-label={`Drop database ${db.name}`}
-                    className="inline-flex items-center justify-center h-11 w-11 rounded-full bg-white/15 text-white hover:bg-[var(--accent-red,#e5484d)] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                    className="inline-flex items-center justify-center h-11 w-11 rounded-full bg-[var(--card)] border border-[var(--border)] text-[var(--ink-muted)] hover:bg-[var(--accent-red,#e5484d)] hover:text-white hover:border-transparent transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>

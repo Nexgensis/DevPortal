@@ -84,10 +84,20 @@ type DatabaseActivity struct {
 // transaction counters identify the database that has been used even while the
 // stack is idle. Template and maintenance databases are excluded because they
 // are never the answer.
-const activeDBQuery = `SELECT datname, numbackends, xact_commit + xact_rollback ` +
-	`FROM pg_stat_database ` +
-	`WHERE datname IS NOT NULL AND datname NOT IN ('postgres','template0','template1') ` +
-	`ORDER BY numbackends DESC, 3 DESC;`
+// pg_stat_database.numbackends counts EVERY connection to a database — including
+// the psql session this very query runs in. Since the credential chain connects
+// to whatever database is configured for the container (often a stale one), that
+// database always reported a connection and was mislabelled "Live", and a
+// genuinely-used database next to it made two show at once. Counting
+// pg_stat_activity while excluding our own backend asks the real question:
+// "who OTHER than me is connected?".
+const activeDBQuery = `SELECT d.datname, ` +
+	`count(a.pid) FILTER (WHERE a.pid <> pg_backend_pid()), ` +
+	`d.xact_commit + d.xact_rollback ` +
+	`FROM pg_stat_database d LEFT JOIN pg_stat_activity a ON a.datid = d.datid ` +
+	`WHERE d.datname IS NOT NULL AND d.datname NOT IN ('postgres','template0','template1') ` +
+	`GROUP BY d.datname, d.xact_commit, d.xact_rollback ` +
+	`ORDER BY 2 DESC, 3 DESC;`
 
 // parseActivityRows reads the pipe-separated psql output of activeDBQuery.
 func parseActivityRows(out string) []DatabaseActivity {
