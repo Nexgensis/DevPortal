@@ -32,9 +32,11 @@ export function useServerStats(servers: Server[]): Record<string, ServerStats | 
   const [stats, setStats] = useState<Record<string, ServerStats | undefined>>({});
 
   // Stabilize the dependency so we re-fetch only when the actual server set
-  // changes (id+address+status), not on every re-render.
+  // changes, not on every re-render. Deliberately excludes status: the picker
+  // re-probes status in the background on mount, and keying on it would fire
+  // a second round of fetches the moment each server flips checking→online.
   const key = useMemo(
-    () => servers.map((s) => `${s.id}:${s.status}`).join('|'),
+    () => servers.map((s) => `${s.id}:${s.address}`).join('|'),
     [servers],
   );
 
@@ -55,8 +57,6 @@ export function useServerStats(servers: Server[]): Record<string, ServerStats | 
     };
 
     const fetchOne = async (s: Server): Promise<[string, ServerStats | undefined]> => {
-      // Offline servers won't respond — skip the round-trip.
-      if (s.status === 'offline') return [s.id, undefined];
       try {
         const res = await fetch(`${API_BASE}/servers/${s.id}/running-apps`, {
           headers: authHeaders(),

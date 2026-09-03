@@ -43,7 +43,14 @@ export function useServers() {
       setIsLoading(true);
       setError(null);
       const serverList = await serverApi.list();
-      setServers(serverList);
+      // /servers returns the cached status column — a server that died since
+      // the last probe still reads "online". Show every server as "checking"
+      // and re-probe in the background so the tab that just mounted lands on
+      // live status. Silent: failures leave the cards on the cached value.
+      setServers(serverList.map(s => ({ ...s, status: 'checking' as const })));
+      serverApi.refreshAll()
+        .then(r => setServers(r.servers))
+        .catch(() => setServers(serverList));
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to load servers';
       setError(errorMessage);
