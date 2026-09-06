@@ -333,7 +333,8 @@ func RestorePostgresDump(db *gorm.DB) gin.HandlerFunc {
 		counter := &countingReader{r: file}
 
 		pgService := services.NewPostgresService()
-		if err := pgService.RestoreDatabase(c.Request.Context(), &server, containerID, targetDB, counter, creds); err != nil {
+		kind, err := pgService.RestoreDatabase(c.Request.Context(), &server, containerID, targetDB, counter, creds)
+		if err != nil {
 			if err == services.ErrTargetDatabaseExists {
 				finish("error", "target database already exists", counter.n)
 				respondWithError(c, http.StatusConflict, fmt.Sprintf("Database %q already exists on this container — pick a different target name (rename the restore).", targetDB))
@@ -349,6 +350,9 @@ func RestorePostgresDump(db *gorm.DB) gin.HandlerFunc {
 			"status":          "success",
 			"target_database": targetDB,
 			"bytes_restored":  counter.n,
+			// What auto-detection made of the upload, so the UI can show what was
+			// actually restored rather than what the filename claimed.
+			"detected": kind,
 		})
 	}
 }

@@ -3,10 +3,12 @@ package services
 import (
 	"bufio"
 	"bytes"
+	"compress/bzip2"
 	"compress/gzip"
 	"context"
 	"fmt"
 	"io"
+	"log"
 	"regexp"
 	"strings"
 
@@ -428,10 +430,194 @@ func isDatabaseAlreadyExistsErr(stderr string) bool {
 // different name (see README §5 "Restoring with rename").
 var ErrTargetDatabaseExists = fmt.Errorf("target database already exists")
 
+// DumpKind is what auto-detection concluded about an uploaded dump: how it is
+// wrapped, which pg_dump output format it is, and which server produced it.
+// It decides the restore tool (psql vs pg_restore) and is reported back to the
+// caller so a failed restore says what it was actually looking at.
+type DumpKind struct {
+	Compression   string `json:"compression"`   // none | gzip | bzip2
+	Format        string `json:"format"`        // plain | custom | tar
+	SourceVersion string `json:"sourceVersion"` // e.g. "17.2", "" when the dump does not say
+	TargetVersion string `json:"targetVersion"` // the receiving server, filled in at restore time
+}
+
+// setLineRe matches a top-level GUC assignment exactly as pg_dump writes it,
+// e.g. `SET transaction_timeout = 0;`. Capture group 1 is the parameter name.
+var setLineRe = regexp.MustCompile(`^SET\s+([A-Za-z_][A-Za-z0-9_]*)\s*=`)
+
+// copyStdinRe matches the line that opens a COPY data block in a plain-text
+// dump. Everything until the terminating `\.` is raw table data and must be
+// passed through byte-for-byte — a row whose first column happens to start
+// with "SET x =" is data, not a statement.
+var copyStdinRe = regexp.MustCompile(`^COPY\s.*\sFROM stdin;`)
+
+// dbScopeRe matches the statements a `pg_dump -C` or pg_dumpall dump uses to
+// create and enter its ORIGINAL database. Left in place they would defeat the
+// whole rename-restore contract: psql would happily run `\connect job_portal`
+// and pour the dump into the live database instead of the fresh target.
+var dbScopeRe = regexp.MustCompile(`^(?i:(?:CREATE|DROP|ALTER)\s+DATABASE\b|\\connect\b|\\c\s)`)
+
+// dumpVersionRe pulls the source server version out of the comment pg_dump
+// writes near the top of a plain dump: `-- Dumped from database version 17.2`.
+var dumpVersionRe = regexp.MustCompile(`--\s*Dumped from database version\s+([0-9]+(?:\.[0-9]+)*)`)
+
+// detectDump inspects the head of an uploaded dump and works out how to restore
+// it, so the user can hand us whatever they downloaded without picking a format.
+// The returned reader replays every byte that detection consumed, so callers
+// stream from it as though nothing had been read.
+//
+// Compression is keyed off magic bytes rather than the filename — our own
+// CreateDump serves gzip under a .sql extension, so extensions lie routinely.
+func detectDump(r io.Reader) (DumpKind, io.Reader, error) {
+	var kind DumpKind
+	br := bufio.NewReaderSize(r, 64<<10)
+
+	kind.Compression = "none"
+	var body io.Reader = br
+	magic, _ := br.Peek(6)
+	switch {
+	case len(magic) >= 2 && magic[0] == 0x1f && magic[1] == 0x8b:
+		gz, err := gzip.NewReader(br)
+		if err != nil {
+			return kind, nil, fmt.Errorf("file looks gzip-compressed but the stream is unreadable: %w", err)
+		}
+		kind.Compression, body = "gzip", gz
+	case len(magic) >= 3 && string(magic[:3]) == "BZh":
+		kind.Compression, body = "bzip2", bzip2.NewReader(br)
+	case len(magic) >= 4 && string(magic[:4]) == "\x28\xb5\x2f\xfd":
+		return kind, nil, fmt.Errorf("this is a zstd-compressed dump, which this portal cannot unwrap — decompress it first (`unzstd dump.sql.zst`) and upload the .sql")
+	case len(magic) >= 6 && string(magic[:6]) == "\xfd7zXZ\x00":
+		return kind, nil, fmt.Errorf("this is an xz-compressed dump, which this portal cannot unwrap — decompress it first (`unxz dump.sql.xz`) and upload the .sql")
+	case len(magic) >= 4 && string(magic[:4]) == "PK\x03\x04":
+		return kind, nil, fmt.Errorf("this is a zip archive, not a dump — unzip it and upload the .sql or .dump inside")
+	}
+
+	// Format is decided on the decompressed bytes. A custom-format archive is
+	// already compressed internally, so in practice it arrives raw.
+	head := bufio.NewReaderSize(body, 64<<10)
+	peek, _ := head.Peek(512)
+	switch {
+	case len(peek) >= 5 && string(peek[:5]) == "PGDMP":
+		kind.Format = "custom"
+	case len(peek) >= 262 && string(peek[257:262]) == "ustar":
+		kind.Format = "tar"
+	default:
+		kind.Format = "plain"
+		// Only a plain dump carries a readable header comment. Peek deep enough
+		// to clear pg_dump's preamble without buffering the whole file.
+		if hdr, _ := head.Peek(8 << 10); len(hdr) > 0 {
+			if m := dumpVersionRe.FindSubmatch(hdr); m != nil {
+				kind.SourceVersion = string(m[1])
+			}
+		}
+	}
+	return kind, head, nil
+}
+
+// knownGUCs returns the set of configuration parameter names the target server
+// recognizes, lowercased. Returns nil if the probe fails — callers then restore
+// the dump unfiltered rather than dropping statements on a guess.
+func (s *PostgresService) knownGUCs(ctx context.Context, cli *client.Client, containerID, osUser string, env []string, role, targetDB string) map[string]bool {
+	out, _, err := s.execCapture(ctx, cli, containerID, osUser, env,
+		[]string{"psql", "-U", role, "-d", targetDB, "-tAc", "SELECT name FROM pg_settings"})
+	if err != nil {
+		log.Printf("restore: could not read pg_settings from %s, streaming dump unfiltered: %v", targetDB, err)
+		return nil
+	}
+	names := make(map[string]bool)
+	for _, n := range strings.Split(out, "\n") {
+		if n = strings.TrimSpace(n); n != "" {
+			names[strings.ToLower(n)] = true
+		}
+	}
+	return names
+}
+
+// serverVersion reports the target's version string ("16.3"), or "" if the
+// probe fails. Cosmetic — used to explain a cross-version restore.
+func (s *PostgresService) serverVersion(ctx context.Context, cli *client.Client, containerID, osUser string, env []string, role, targetDB string) string {
+	out, _, err := s.execCapture(ctx, cli, containerID, osUser, env,
+		[]string{"psql", "-U", role, "-d", targetDB, "-tAc", "SHOW server_version"})
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(strings.SplitN(strings.TrimSpace(out), " ", 2)[0])
+}
+
+// copyPlainDump streams a plain-text dump into psql's stdin, rewriting the two
+// classes of statement that would otherwise break a rename-restore:
+//
+//   - `SET <guc> = ...` naming a parameter absent from known. pg_dump writes the
+//     GUCs of the server it dumped FROM, so a PostgreSQL 17 dump restored into a
+//     16 container aborts on `SET transaction_timeout = 0;` — psql reports
+//     "unrecognized configuration parameter" and ON_ERROR_STOP=1 kills the
+//     restore before a single row lands. These are dump-local safety settings,
+//     so skipping the ones the target lacks restores faithfully.
+//   - `CREATE/DROP/ALTER DATABASE` and `\connect`, which a `pg_dump -C` or
+//     pg_dumpall dump uses to re-enter its original database. Honouring those
+//     would write into a live database instead of the fresh target.
+//
+// COPY data blocks are passed through untouched so table data that happens to
+// look like a statement is never rewritten. A nil known set disables GUC
+// filtering (the probe failed); database-scope statements are always dropped.
+//
+// ponytail: line-oriented, so it only recognizes these statements in the
+// one-per-line shape pg_dump emits. A hand-edited dump wrapping `CREATE
+// DATABASE` across lines would slip through; parse the SQL if that ever shows up.
+func copyPlainDump(dst io.Writer, src io.Reader, known map[string]bool) error {
+	br := bufio.NewReader(src)
+	inCopy := false
+	var droppedSets, droppedScope []string
+	for {
+		line, readErr := br.ReadString('\n')
+		if line != "" {
+			trimmed := strings.TrimSpace(line)
+			switch {
+			case inCopy:
+				if trimmed == `\.` {
+					inCopy = false
+				}
+			case copyStdinRe.MatchString(trimmed):
+				inCopy = true
+			case dbScopeRe.MatchString(trimmed):
+				droppedScope = append(droppedScope, trimmed)
+				line = ""
+			default:
+				if m := setLineRe.FindStringSubmatch(trimmed); m != nil && len(known) > 0 && !known[strings.ToLower(m[1])] {
+					droppedSets = append(droppedSets, m[1])
+					line = ""
+				}
+			}
+		}
+		if line != "" {
+			if _, err := io.WriteString(dst, line); err != nil {
+				return err
+			}
+		}
+		if readErr != nil {
+			if readErr == io.EOF {
+				break
+			}
+			return readErr
+		}
+	}
+	if len(droppedSets) > 0 {
+		log.Printf("restore: dropped %d SET statement(s) for parameters this server does not have (dump is from a newer PostgreSQL): %s",
+			len(droppedSets), strings.Join(droppedSets, ", "))
+	}
+	if len(droppedScope) > 0 {
+		log.Printf("restore: dropped %d database-scope statement(s) so the dump lands in the target database: %s",
+			len(droppedScope), strings.Join(droppedScope, " | "))
+	}
+	return nil
+}
+
 // RestoreDatabase creates a fresh database named targetDB inside the container
-// and streams the SQL dump (sqlReader) through psql to populate it. The dump
-// can be plain SQL or gzip-compressed — the format is auto-detected via magic
-// bytes so users can restore exactly what they downloaded from CreateDump.
+// and streams the uploaded dump into it. Everything about the dump is detected
+// from its own bytes (see detectDump) rather than its filename or a user choice:
+// gzip/bzip2 wrapping is unwrapped, a plain dump goes through psql and a
+// custom/tar archive through pg_restore, and the source server version is read
+// from the header. The DumpKind it returns records what it concluded.
 //
 // Refuses if targetDB already exists: createdb errors out with "already exists"
 // and we return ErrTargetDatabaseExists so the controller can return 409. This
@@ -448,14 +634,22 @@ func (s *PostgresService) RestoreDatabase(
 	containerID, targetDB string,
 	sqlReader io.Reader,
 	creds *PostgresCreds,
-) error {
+) (DumpKind, error) {
+	var kind DumpKind
 	if !validDBName.MatchString(targetDB) {
-		return fmt.Errorf("invalid database name %q (letters, digits, underscore, hyphen only; must start with a letter or underscore; max 63 chars)", targetDB)
+		return kind, fmt.Errorf("invalid database name %q (letters, digits, underscore, hyphen only; must start with a letter or underscore; max 63 chars)", targetDB)
+	}
+
+	// Detect before touching the server: an unreadable upload should not leave
+	// an empty database behind for the user to clean up.
+	kind, dumpInput, err := detectDump(sqlReader)
+	if err != nil {
+		return kind, err
 	}
 
 	cli, err := NewDockerClient(server)
 	if err != nil {
-		return err
+		return kind, err
 	}
 	defer cli.Close()
 
@@ -468,35 +662,34 @@ func (s *PostgresService) RestoreDatabase(
 	createCmd := []string{"createdb", "-U", role, targetDB}
 	if _, stderr, err := s.execCapture(ctx, cli, containerID, osUser, env, createCmd); err != nil {
 		if isDatabaseAlreadyExistsErr(stderr) {
-			return ErrTargetDatabaseExists
+			return kind, ErrTargetDatabaseExists
 		}
-		return fmt.Errorf("createdb failed: %w (%s)", err, strings.TrimSpace(stderr))
+		return kind, fmt.Errorf("createdb failed: %w (%s)", err, strings.TrimSpace(stderr))
 	}
 
-	// Step 2 — auto-detect a gzip-compressed dump via the magic bytes (1f 8b)
-	// and wrap the reader with a streaming gunzip if so. This lets users restore
-	// the exact file CreateDump produces (which is gzip with a .sql extension —
-	// the dump endpoint sets Content-Encoding: gzip so browsers save it raw).
-	br := bufio.NewReader(sqlReader)
-	magic, _ := br.Peek(2)
-	var sqlInput io.Reader = br
-	var gzReader *gzip.Reader
-	if len(magic) == 2 && magic[0] == 0x1f && magic[1] == 0x8b {
-		gzReader, err = gzip.NewReader(br)
-		if err != nil {
-			return fmt.Errorf("failed to open gzip stream: %w", err)
-		}
-		defer gzReader.Close()
-		sqlInput = gzReader
+	// Step 2 — read the target's version and GUC list. The version explains a
+	// cross-version restore in the report; the GUC list lets a dump from a newer
+	// PostgreSQL through by skipping SETs this server cannot honour.
+	kind.TargetVersion = s.serverVersion(ctx, cli, containerID, osUser, env, role, targetDB)
+	var known map[string]bool
+	if kind.Format == "plain" {
+		known = s.knownGUCs(ctx, cli, containerID, osUser, env, role, targetDB)
 	}
+	log.Printf("restore into %s: %s dump, %s-compressed, from PostgreSQL %s into %s",
+		targetDB, kind.Format, kind.Compression, orUnknown(kind.SourceVersion), orUnknown(kind.TargetVersion))
 
-	// Step 3 — stream the SQL into psql via stdin. ON_ERROR_STOP=1 makes psql
-	// abort on the first failing statement so a corrupt dump can't silently
-	// leave a partial schema; the non-zero exit is then surfaced as an error.
+	// Step 3 — pick the restore tool from the detected format. pg_restore reads
+	// a custom/tar archive; psql reads plain SQL. ON_ERROR_STOP=1 (and
+	// pg_restore's --exit-on-error) abort on the first failing statement so a
+	// corrupt dump can't silently leave a partial schema.
+	cmd := []string{"psql", "-U", role, "-d", targetDB, "-v", "ON_ERROR_STOP=1"}
+	if kind.Format != "plain" {
+		cmd = []string{"pg_restore", "-U", role, "-d", targetDB, "--no-owner", "--no-privileges", "--exit-on-error"}
+	}
 	execCfg := container.ExecOptions{
 		User:         osUser,
 		Env:          env,
-		Cmd:          []string{"psql", "-U", role, "-d", targetDB, "-v", "ON_ERROR_STOP=1"},
+		Cmd:          cmd,
 		AttachStdin:  true,
 		AttachStdout: true,
 		AttachStderr: true,
@@ -504,11 +697,11 @@ func (s *PostgresService) RestoreDatabase(
 	}
 	execResp, err := cli.ContainerExecCreate(ctx, containerID, execCfg)
 	if err != nil {
-		return fmt.Errorf("failed to create psql exec: %w", err)
+		return kind, fmt.Errorf("failed to create %s exec: %w", cmd[0], err)
 	}
 	hijacked, err := cli.ContainerExecAttach(ctx, execResp.ID, container.ExecAttachOptions{Tty: false})
 	if err != nil {
-		return fmt.Errorf("failed to attach psql exec: %w", err)
+		return kind, fmt.Errorf("failed to attach %s exec: %w", cmd[0], err)
 	}
 	defer hijacked.Close()
 
@@ -517,7 +710,14 @@ func (s *PostgresService) RestoreDatabase(
 	// transaction and exit cleanly.
 	writeErrCh := make(chan error, 1)
 	go func() {
-		_, copyErr := io.Copy(hijacked.Conn, sqlInput)
+		// Only a plain dump is line-oriented; a custom/tar archive is binary and
+		// goes to pg_restore byte-for-byte.
+		var copyErr error
+		if kind.Format == "plain" {
+			copyErr = copyPlainDump(hijacked.Conn, dumpInput, known)
+		} else {
+			_, copyErr = io.Copy(hijacked.Conn, dumpInput)
+		}
 		if cw, ok := hijacked.Conn.(interface{ CloseWrite() error }); ok {
 			_ = cw.CloseWrite()
 		}
@@ -538,17 +738,27 @@ func (s *PostgresService) RestoreDatabase(
 		if msg == "" {
 			msg = strings.TrimSpace(stdoutBuf.String())
 		}
-		return fmt.Errorf("psql exited with code %d (partial DB %q left in place): %s", inspect.ExitCode, targetDB, msg)
+		return kind, fmt.Errorf("%s exited with code %d restoring a %s dump from PostgreSQL %s into %s (partial DB %q left in place): %s",
+			cmd[0], inspect.ExitCode, kind.Format, orUnknown(kind.SourceVersion), orUnknown(kind.TargetVersion), targetDB, msg)
 	}
 
 	if writeErr != nil && writeErr != io.EOF {
-		return fmt.Errorf("failed to stream SQL into psql: %w (psql said: %s)", writeErr, strings.TrimSpace(stderrBuf.String()))
+		return kind, fmt.Errorf("failed to stream dump into %s: %w (%s said: %s)", cmd[0], writeErr, cmd[0], strings.TrimSpace(stderrBuf.String()))
 	}
 	if readErr != nil {
-		return fmt.Errorf("psql output stream failed: %w (%s)", readErr, strings.TrimSpace(stderrBuf.String()))
+		return kind, fmt.Errorf("%s output stream failed: %w (%s)", cmd[0], readErr, strings.TrimSpace(stderrBuf.String()))
 	}
 
-	return nil
+	return kind, nil
+}
+
+// orUnknown keeps log lines and error messages readable when a version probe
+// came back empty.
+func orUnknown(v string) string {
+	if v == "" {
+		return "an unknown version"
+	}
+	return v
 }
 
 // systemDatabases can never be dropped through the portal. Postgres refuses

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { usePostgres } from '../hooks/usePostgres';
+import { usePostgres, type DumpKind } from '../hooks/usePostgres';
 import { useServers } from '../hooks/useServers';
 import { useRoute } from '../hooks/useRoute';
 import { useServerStats } from '../hooks/useServerStats';
@@ -91,6 +91,20 @@ interface DumpProgress {
   total: number | null; // null = indeterminate (chunked transfer w/o Content-Length)
 }
 
+// describeDump turns the server's auto-detection result into one plain line,
+// so a restore that quietly crossed PostgreSQL versions or unwrapped a
+// compressed archive says so instead of looking like a same-version copy.
+const describeDump = (d: DumpKind): string => {
+  const parts = [`${d.format} dump`];
+  if (d.compression !== 'none') parts.push(`${d.compression}-compressed`);
+  if (d.sourceVersion && d.targetVersion && d.sourceVersion !== d.targetVersion) {
+    parts.push(`PostgreSQL ${d.sourceVersion} → ${d.targetVersion}`);
+  } else if (d.sourceVersion) {
+    parts.push(`PostgreSQL ${d.sourceVersion}`);
+  }
+  return `Detected: ${parts.join(' · ')}`;
+};
+
 export const PostgresManager = () => {
   const { servers, isLoading: serversLoading } = useServers();
   const serverStats = useServerStats(servers);
@@ -121,6 +135,9 @@ export const PostgresManager = () => {
   const [restoreStage, setRestoreStage] = useState<'idle' | 'uploading' | 'restoring' | 'success' | 'error'>('idle');
   const [restoreProgress, setRestoreProgress] = useState<{ uploaded: number; total: number } | null>(null);
   const [restoreError, setRestoreError] = useState<string | null>(null);
+  // What the server made of the upload — shown on success so a cross-version or
+  // recompressed restore is visible rather than silent.
+  const [restoreDetected, setRestoreDetected] = useState<DumpKind | null>(null);
 
   // Drop-database confirmation. dropTarget doubles as the dialog's open flag;
   // dropConfirm must match the database name exactly before the button unlocks.
@@ -288,6 +305,7 @@ export const PostgresManager = () => {
     setRestoreStage('idle');
     setRestoreProgress(null);
     setRestoreError(null);
+    setRestoreDetected(null);
   };
 
   // Suggest a safe target name from the picked filename so users get a sensible
@@ -295,7 +313,7 @@ export const PostgresManager = () => {
   // (see CreatePostgresDump controller) — strip extension, take the part before
   // the first "-", and append "_restored".
   const suggestTargetName = (filename: string): string => {
-    const stem = filename.replace(/\.(sql\.gz|sql|gz)$/i, '');
+    const stem = filename.replace(/\.(sql\.gz|sql\.bz2|sql|gz|bz2|dump|backup|tar)$/i, '');
     const dbPart = stem.split('-')[0];
     return dbPart ? `${dbPart}_restored` : '';
   };
@@ -303,6 +321,7 @@ export const PostgresManager = () => {
   const handleRestoreFilePick = (file: File | null) => {
     setRestoreFile(file);
     setRestoreError(null);
+    setRestoreDetected(null);
     if (file && !restoreTarget) {
       setRestoreTarget(suggestTargetName(file.name));
     }
@@ -314,7 +333,7 @@ export const PostgresManager = () => {
     setRestoreProgress({ uploaded: 0, total: restoreFile.size });
     setRestoreError(null);
     try {
-      await restoreDump(
+      const result = await restoreDump(
         {
           serverId: selectedServer,
           containerId: selectedContainer,
@@ -330,6 +349,7 @@ export const PostgresManager = () => {
           },
         },
       );
+      setRestoreDetected(result.detected ?? null);
       setRestoreStage('success');
       // Refresh the database grid so the freshly-restored DB shows up.
       await loadDatabases();
@@ -964,7 +984,7 @@ export const PostgresManager = () => {
                       </Dialog>
 
                       {/* Restore Dialog — admin only. Creates a fresh database from an uploaded
-                          .sql / .sql.gz dump. Refuses if target name already exists (server-side
+                          dump in any pg_dump format. Refuses if target name already exists (server-side
                           409) so live databases are never silently overwritten. */}
                       <Dialog
                         open={restoreOpen}
@@ -980,7 +1000,7 @@ export const PostgresManager = () => {
                           <DialogHeader>
                             <DialogTitle>Restore Database</DialogTitle>
                             <DialogDescription>
-                              Upload a <span className="font-mono text-[var(--ink)]">.sql</span> or <span className="font-mono text-[var(--ink)]">.sql.gz</span> dump and pick a name for the <strong>new</strong> database in <span className="font-medium text-[var(--ink)]">{selectedContainerData.name}</span>. If the target name already exists, the restore is refused — your live database is never touched.
+                              Upload any pg_dump output — plain <span className="font-mono text-[var(--ink)]">.sql</span>, a custom/tar archive, gzip- or bzip2-compressed. The format is detected from the file itself. Pick a name for the <strong>new</strong> database in <span className="font-medium text-[var(--ink)]">{selectedContainerData.name}</span>. If the target name already exists, the restore is refused — your live database is never touched.
                             </DialogDescription>
                           </DialogHeader>
 
@@ -1018,7 +1038,7 @@ export const PostgresManager = () => {
                                 <input
                                   id="restore-file"
                                   type="file"
-                                  accept=".sql,.gz,.sql.gz,application/sql,application/gzip,application/x-gzip"
+                                  accept=".sql,.gz,.sql.gz,.bz2,.dump,.backup,.tar,application/sql,application/gzip,application/x-gzip,application/x-bzip2,application/x-tar,application/octet-stream"
                                   className="hidden"
                                   disabled={restoreStage === 'uploading' || restoreStage === 'restoring'}
                                   onChange={(e) => handleRestoreFilePick(e.target.files?.[0] ?? null)}
@@ -1073,13 +1093,18 @@ export const PostgresManager = () => {
                             {restoreStage === 'restoring' && (
                               <div className="flex items-center gap-2 text-sm text-[var(--ink)]">
                                 <span className="h-4 w-4 rounded-full border-2 border-[var(--accent-pink)] border-r-transparent animate-spin" />
-                                <span>Restoring on server (running <span className="font-mono text-xs">psql</span>)…</span>
+                                <span>Restoring on server…</span>
                               </div>
                             )}
                             {restoreStage === 'success' && (
                               <div className="flex items-start gap-2 rounded-[var(--radius)] border border-[color-mix(in_srgb,var(--accent-green)_30%,transparent)] bg-[var(--accent-green-soft)] px-3 py-2 text-sm text-[var(--ink)]">
                                 <Database className="h-4 w-4 mt-0.5 shrink-0 text-[var(--accent-green)]" />
-                                <span>Database <span className="font-mono">{restoreTarget}</span> restored.</span>
+                                <div className="min-w-0">
+                                  <div>Database <span className="font-mono">{restoreTarget}</span> restored.</div>
+                                  {restoreDetected && (
+                                    <div className="text-xs text-[var(--ink-muted)] mt-0.5">{describeDump(restoreDetected)}</div>
+                                  )}
+                                </div>
                               </div>
                             )}
                             {restoreStage === 'error' && restoreError && (

@@ -6,6 +6,21 @@ const API_BASE = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_AP
   ? `${import.meta.env.VITE_API_URL}/api`
   : '/api';
 
+// DumpKind mirrors the server's auto-detection result: what the uploaded file
+// actually turned out to be, independent of its filename.
+export interface DumpKind {
+  compression: 'none' | 'gzip' | 'bzip2';
+  format: 'plain' | 'custom' | 'tar';
+  sourceVersion: string; // PostgreSQL version that wrote the dump, "" if unstated
+  targetVersion: string; // PostgreSQL version that received it
+}
+
+export interface RestoreResult {
+  targetDatabase: string;
+  bytesRestored: number;
+  detected?: DumpKind;
+}
+
 export const usePostgres = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -223,8 +238,10 @@ export const usePostgres = () => {
     }
   };
 
-  // restoreDump uploads a .sql / .sql.gz dump file and asks the server to
-  // create a fresh database `targetDatabase` from it. `onProgress` reports the
+  // restoreDump uploads a dump file and asks the server to create a fresh
+  // database `targetDatabase` from it. The format is detected server-side from
+  // the file's own bytes (plain/custom/tar, gzip/bzip2/none), so the caller
+  // does not have to say what it uploaded — the result reports what was found. `onProgress` reports the
   // upload phase (XHR is used instead of fetch because fetch can't surface
   // upload byte progress). Once upload finishes, the server runs createdb +
   // psql synchronously and returns the result — the UI should show a
@@ -238,7 +255,7 @@ export const usePostgres = () => {
       file: File;
     },
     opts?: { onProgress?: (uploaded: number, total: number) => void },
-  ): Promise<{ targetDatabase: string; bytesRestored: number }> => {
+  ): Promise<RestoreResult> => {
     setLoading(true);
     setError(null);
     try {
@@ -250,7 +267,7 @@ export const usePostgres = () => {
       form.append('target_database', payload.targetDatabase);
       form.append('dump_file', payload.file);
 
-      const result = await new Promise<{ targetDatabase: string; bytesRestored: number }>(
+      const result = await new Promise<RestoreResult>(
         (resolve, reject) => {
           const xhr = new XMLHttpRequest();
           xhr.open('POST', `${API_BASE}/postgres/restore`);
@@ -271,6 +288,7 @@ export const usePostgres = () => {
                 resolve({
                   targetDatabase: data.target_database,
                   bytesRestored: data.bytes_restored ?? 0,
+                  detected: data.detected,
                 });
               } catch {
                 reject(new Error('Invalid response from server'));
