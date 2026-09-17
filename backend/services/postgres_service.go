@@ -430,15 +430,53 @@ func isDatabaseAlreadyExistsErr(stderr string) bool {
 // different name (see README §5 "Restoring with rename").
 var ErrTargetDatabaseExists = fmt.Errorf("target database already exists")
 
-// DumpKind is what auto-detection concluded about an uploaded dump: how it is
+// RestoreReport is what auto-detection concluded about an uploaded dump: how it is
 // wrapped, which pg_dump output format it is, and which server produced it.
 // It decides the restore tool (psql vs pg_restore) and is reported back to the
-// caller so a failed restore says what it was actually looking at.
-type DumpKind struct {
+// caller, along with any statements the server complained about, so a restore
+// says what it was actually looking at and what it skipped.
+type RestoreReport struct {
 	Compression   string `json:"compression"`   // none | gzip | bzip2
 	Format        string `json:"format"`        // plain | custom | tar
 	SourceVersion string `json:"sourceVersion"` // e.g. "17.2", "" when the dump does not say
 	TargetVersion string `json:"targetVersion"` // the receiving server, filled in at restore time
+	// Distinct errors the server reported while replaying the dump, each with
+	// an occurrence count. Non-empty means "restored, but read these".
+	Warnings []string `json:"warnings,omitempty"`
+}
+
+// errorLineRe matches the error lines psql and pg_restore write to stderr.
+var errorLineRe = regexp.MustCompile(`(?m)^(?:pg_restore: )?(?:ERROR|error):\s*(.+)$`)
+
+// collectRestoreWarnings reduces a wall of stderr to the distinct complaints
+// with occurrence counts. A dump with 48 tables owned by a role the target does
+// not have produces 48 identical lines; the user needs to read one.
+func collectRestoreWarnings(stderr string, limit int) []string {
+	counts := map[string]int{}
+	var order []string
+	for _, m := range errorLineRe.FindAllStringSubmatch(stderr, -1) {
+		msg := strings.TrimSpace(m[1])
+		if msg == "" {
+			continue
+		}
+		if counts[msg] == 0 {
+			order = append(order, msg)
+		}
+		counts[msg]++
+	}
+
+	var out []string
+	for _, msg := range order {
+		if len(out) == limit {
+			out = append(out, fmt.Sprintf("…and %d more distinct error(s) — see the container logs", len(order)-limit))
+			break
+		}
+		if counts[msg] > 1 {
+			msg = fmt.Sprintf("%s (x%d)", msg, counts[msg])
+		}
+		out = append(out, msg)
+	}
+	return out
 }
 
 // setLineRe matches a top-level GUC assignment exactly as pg_dump writes it,
@@ -468,8 +506,8 @@ var dumpVersionRe = regexp.MustCompile(`--\s*Dumped from database version\s+([0-
 //
 // Compression is keyed off magic bytes rather than the filename — our own
 // CreateDump serves gzip under a .sql extension, so extensions lie routinely.
-func detectDump(r io.Reader) (DumpKind, io.Reader, error) {
-	var kind DumpKind
+func detectDump(r io.Reader) (RestoreReport, io.Reader, error) {
+	var kind RestoreReport
 	br := bufio.NewReaderSize(r, 64<<10)
 
 	kind.Compression = "none"
@@ -514,6 +552,89 @@ func detectDump(r io.Reader) (DumpKind, io.Reader, error) {
 	return kind, head, nil
 }
 
+// The statement shapes pg_dump uses to hand an object to a role. A dump taken
+// on a stock image says `OWNER TO postgres`, but hardened images run under a
+// custom superuser and have no `postgres` role at all — psql then dies with
+// `role "postgres" does not exist` partway through the restore.
+var (
+	ownerToRe     = regexp.MustCompile(`(?i)^ALTER\s+.*\sOWNER\s+TO\s+([^;]+);`)
+	grantRe       = regexp.MustCompile(`(?i)^(?:GRANT|REVOKE)\s+.*?\s(?:TO|FROM)\s+([^;]+);`)
+	defaultPrivRe = regexp.MustCompile(`(?i)^ALTER\s+DEFAULT\s+PRIVILEGES\s+FOR\s+ROLE\s+([^\s;]+)`)
+	sessionAuthRe = regexp.MustCompile(`(?i)^SET\s+SESSION\s+AUTHORIZATION\s+([^;]+);`)
+	schemaAuthRe  = regexp.MustCompile(`(?i)^CREATE\s+SCHEMA\s+\S+\s+AUTHORIZATION\s+([^;]+);`)
+	grantSuffixRe = regexp.MustCompile(`(?i)\s+(?:WITH\s+GRANT\s+OPTION|GRANTED\s+BY\s+.*)$`)
+)
+
+// pseudoRoles are always valid targets of a GRANT and are never listed in
+// pg_roles, so they must not be mistaken for a missing role.
+var pseudoRoles = map[string]bool{"public": true, "current_user": true, "session_user": true, "current_role": true}
+
+// normalizeRole strips the quoting pg_dump applies to identifiers. Unquoted
+// identifiers fold to lower case in PostgreSQL; quoted ones keep their case, so
+// callers check both spellings against the role set.
+func normalizeRole(r string) string {
+	r = strings.TrimSpace(r)
+	r = strings.Trim(r, `"'`)
+	return strings.TrimSpace(r)
+}
+
+// missingRoleRef reports the role an ownership or privilege statement names when
+// that role does not exist on the target server, or "" when the statement is
+// fine (or is not one of these forms). An empty roles set disables the check.
+//
+// ponytail: recognizes the one-statement-per-line forms pg_dump emits; a
+// hand-wrapped GRANT would slip through. Parse the SQL if that ever shows up.
+func missingRoleRef(stmt string, roles map[string]bool) string {
+	if len(roles) == 0 {
+		return ""
+	}
+	var list string
+	switch {
+	case ownerToRe.MatchString(stmt):
+		list = ownerToRe.FindStringSubmatch(stmt)[1]
+	case defaultPrivRe.MatchString(stmt):
+		list = defaultPrivRe.FindStringSubmatch(stmt)[1]
+	case sessionAuthRe.MatchString(stmt):
+		list = sessionAuthRe.FindStringSubmatch(stmt)[1]
+	case schemaAuthRe.MatchString(stmt):
+		list = schemaAuthRe.FindStringSubmatch(stmt)[1]
+	case grantRe.MatchString(stmt):
+		list = grantSuffixRe.ReplaceAllString(grantRe.FindStringSubmatch(stmt)[1], "")
+	default:
+		return ""
+	}
+
+	for _, raw := range strings.Split(list, ",") {
+		name := normalizeRole(raw)
+		if name == "" || pseudoRoles[strings.ToLower(name)] {
+			continue
+		}
+		if !roles[name] && !roles[strings.ToLower(name)] {
+			return name
+		}
+	}
+	return ""
+}
+
+// knownRoles returns the role names on the target server. Returns nil if the
+// probe fails — callers then leave ownership statements alone rather than
+// stripping them on a guess.
+func (s *PostgresService) knownRoles(ctx context.Context, cli *client.Client, containerID, osUser string, env []string, role, targetDB string) map[string]bool {
+	out, _, err := s.execCapture(ctx, cli, containerID, osUser, env,
+		[]string{"psql", "-U", role, "-d", targetDB, "-tAc", "SELECT rolname FROM pg_roles"})
+	if err != nil {
+		log.Printf("restore: could not read pg_roles from %s, leaving ownership statements as-is: %v", targetDB, err)
+		return nil
+	}
+	names := make(map[string]bool)
+	for _, n := range strings.Split(out, "\n") {
+		if n = strings.TrimSpace(n); n != "" {
+			names[n] = true
+		}
+	}
+	return names
+}
+
 // knownGUCs returns the set of configuration parameter names the target server
 // recognizes, lowercased. Returns nil if the probe fails — callers then restore
 // the dump unfiltered rather than dropping statements on a guess.
@@ -556,18 +677,25 @@ func (s *PostgresService) serverVersion(ctx context.Context, cli *client.Client,
 //   - `CREATE/DROP/ALTER DATABASE` and `\connect`, which a `pg_dump -C` or
 //     pg_dumpall dump uses to re-enter its original database. Honouring those
 //     would write into a live database instead of the fresh target.
+//   - ownership and privilege statements naming a role absent from roles. A dump
+//     from a stock image says `OWNER TO postgres`, but a hardened image runs
+//     under a custom superuser with no `postgres` role, so psql dies with
+//     `role "postgres" does not exist`. Dropping them leaves the objects owned by
+//     the connecting role — exactly what pg_restore --no-owner --no-privileges
+//     does on the custom-format path.
 //
 // COPY data blocks are passed through untouched so table data that happens to
-// look like a statement is never rewritten. A nil known set disables GUC
-// filtering (the probe failed); database-scope statements are always dropped.
+// look like a statement is never rewritten. A nil known/roles set disables that
+// filter (the probe failed); database-scope statements are always dropped.
 //
 // ponytail: line-oriented, so it only recognizes these statements in the
 // one-per-line shape pg_dump emits. A hand-edited dump wrapping `CREATE
 // DATABASE` across lines would slip through; parse the SQL if that ever shows up.
-func copyPlainDump(dst io.Writer, src io.Reader, known map[string]bool) error {
+func copyPlainDump(dst io.Writer, src io.Reader, known, roles map[string]bool) error {
 	br := bufio.NewReader(src)
 	inCopy := false
 	var droppedSets, droppedScope []string
+	missingRoles := map[string]int{}
 	for {
 		line, readErr := br.ReadString('\n')
 		if line != "" {
@@ -585,6 +713,9 @@ func copyPlainDump(dst io.Writer, src io.Reader, known map[string]bool) error {
 			default:
 				if m := setLineRe.FindStringSubmatch(trimmed); m != nil && len(known) > 0 && !known[strings.ToLower(m[1])] {
 					droppedSets = append(droppedSets, m[1])
+					line = ""
+				} else if missing := missingRoleRef(trimmed, roles); missing != "" {
+					missingRoles[missing]++
 					line = ""
 				}
 			}
@@ -609,6 +740,9 @@ func copyPlainDump(dst io.Writer, src io.Reader, known map[string]bool) error {
 		log.Printf("restore: dropped %d database-scope statement(s) so the dump lands in the target database: %s",
 			len(droppedScope), strings.Join(droppedScope, " | "))
 	}
+	for name, n := range missingRoles {
+		log.Printf("restore: dropped %d ownership/privilege statement(s) for role %q, which does not exist on this server — those objects stay owned by the restoring role", n, name)
+	}
 	return nil
 }
 
@@ -617,7 +751,7 @@ func copyPlainDump(dst io.Writer, src io.Reader, known map[string]bool) error {
 // from its own bytes (see detectDump) rather than its filename or a user choice:
 // gzip/bzip2 wrapping is unwrapped, a plain dump goes through psql and a
 // custom/tar archive through pg_restore, and the source server version is read
-// from the header. The DumpKind it returns records what it concluded.
+// from the header. The RestoreReport it returns records what it concluded.
 //
 // Refuses if targetDB already exists: createdb errors out with "already exists"
 // and we return ErrTargetDatabaseExists so the controller can return 409. This
@@ -634,8 +768,8 @@ func (s *PostgresService) RestoreDatabase(
 	containerID, targetDB string,
 	sqlReader io.Reader,
 	creds *PostgresCreds,
-) (DumpKind, error) {
-	var kind DumpKind
+) (RestoreReport, error) {
+	var kind RestoreReport
 	if !validDBName.MatchString(targetDB) {
 		return kind, fmt.Errorf("invalid database name %q (letters, digits, underscore, hyphen only; must start with a letter or underscore; max 63 chars)", targetDB)
 	}
@@ -667,24 +801,32 @@ func (s *PostgresService) RestoreDatabase(
 		return kind, fmt.Errorf("createdb failed: %w (%s)", err, strings.TrimSpace(stderr))
 	}
 
-	// Step 2 — read the target's version and GUC list. The version explains a
-	// cross-version restore in the report; the GUC list lets a dump from a newer
-	// PostgreSQL through by skipping SETs this server cannot honour.
+	// Step 2 — read the target's version, GUC list and role list. The version
+	// explains a cross-version restore in the report; the GUC list lets a dump
+	// from a newer PostgreSQL through by skipping SETs this server cannot
+	// honour; the role list does the same for objects owned by a role that only
+	// exists on the machine the dump came from.
 	kind.TargetVersion = s.serverVersion(ctx, cli, containerID, osUser, env, role, targetDB)
-	var known map[string]bool
+	var known, roles map[string]bool
 	if kind.Format == "plain" {
 		known = s.knownGUCs(ctx, cli, containerID, osUser, env, role, targetDB)
+		roles = s.knownRoles(ctx, cli, containerID, osUser, env, role, targetDB)
 	}
 	log.Printf("restore into %s: %s dump, %s-compressed, from PostgreSQL %s into %s",
 		targetDB, kind.Format, kind.Compression, orUnknown(kind.SourceVersion), orUnknown(kind.TargetVersion))
 
 	// Step 3 — pick the restore tool from the detected format. pg_restore reads
-	// a custom/tar archive; psql reads plain SQL. ON_ERROR_STOP=1 (and
-	// pg_restore's --exit-on-error) abort on the first failing statement so a
-	// corrupt dump can't silently leave a partial schema.
-	cmd := []string{"psql", "-U", role, "-d", targetDB, "-v", "ON_ERROR_STOP=1"}
+	// a custom/tar archive; psql reads plain SQL.
+	//
+	// Deliberately NOT ON_ERROR_STOP / --exit-on-error. A statement error in a
+	// dump is usually cosmetic — an ownership grant to a role this host doesn't
+	// have, a comment on a missing extension — and aborting there threw away a
+	// restore whose table data was perfectly fine, leaving a half-populated
+	// database behind. The errors are collected into the report instead, so the
+	// data lands and the user still sees exactly what was skipped.
+	cmd := []string{"psql", "-U", role, "-d", targetDB}
 	if kind.Format != "plain" {
-		cmd = []string{"pg_restore", "-U", role, "-d", targetDB, "--no-owner", "--no-privileges", "--exit-on-error"}
+		cmd = []string{"pg_restore", "-U", role, "-d", targetDB, "--no-owner", "--no-privileges"}
 	}
 	execCfg := container.ExecOptions{
 		User:         osUser,
@@ -714,7 +856,7 @@ func (s *PostgresService) RestoreDatabase(
 		// goes to pg_restore byte-for-byte.
 		var copyErr error
 		if kind.Format == "plain" {
-			copyErr = copyPlainDump(hijacked.Conn, dumpInput, known)
+			copyErr = copyPlainDump(hijacked.Conn, dumpInput, known, roles)
 		} else {
 			_, copyErr = io.Copy(hijacked.Conn, dumpInput)
 		}
@@ -729,10 +871,12 @@ func (s *PostgresService) RestoreDatabase(
 	_, readErr := stdcopy.StdCopy(&stdoutBuf, &stderrBuf, hijacked.Reader)
 	writeErr := <-writeErrCh
 
-	// Check psql's exit code BEFORE the stream errors. When ON_ERROR_STOP fires
-	// mid-dump, psql exits while we are still writing, so the copy fails with
-	// "connection reset by peer" — a symptom of the SQL error, not a transport
-	// fault. Reporting the write error first buried the real cause.
+	// Check the exit code BEFORE the stream errors. When the client dies mid-dump
+	// it exits while we are still writing, so the copy fails with "connection
+	// reset by peer" — a symptom of the real fault, not a transport problem.
+	// Reporting the write error first buried the cause. Without ON_ERROR_STOP a
+	// non-zero exit now means something fatal (couldn't connect, bad invocation),
+	// not a statement the dump got wrong.
 	if inspect, ierr := cli.ContainerExecInspect(ctx, execResp.ID); ierr == nil && inspect.ExitCode != 0 {
 		msg := strings.TrimSpace(stderrBuf.String())
 		if msg == "" {
@@ -749,6 +893,13 @@ func (s *PostgresService) RestoreDatabase(
 		return kind, fmt.Errorf("%s output stream failed: %w (%s)", cmd[0], readErr, strings.TrimSpace(stderrBuf.String()))
 	}
 
+	// The restore ran to completion. Anything the server complained about along
+	// the way is reported rather than raised — the data is in.
+	kind.Warnings = collectRestoreWarnings(stderrBuf.String(), 8)
+	if len(kind.Warnings) > 0 {
+		log.Printf("restore into %s finished with %d distinct error(s): %s",
+			targetDB, len(kind.Warnings), strings.Join(kind.Warnings, " | "))
+	}
 	return kind, nil
 }
 

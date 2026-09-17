@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { usePostgres, type DumpKind } from '../hooks/usePostgres';
+import { usePostgres, type RestoreReport } from '../hooks/usePostgres';
 import { useServers } from '../hooks/useServers';
 import { useRoute } from '../hooks/useRoute';
 import { useServerStats } from '../hooks/useServerStats';
@@ -94,7 +94,7 @@ interface DumpProgress {
 // describeDump turns the server's auto-detection result into one plain line,
 // so a restore that quietly crossed PostgreSQL versions or unwrapped a
 // compressed archive says so instead of looking like a same-version copy.
-const describeDump = (d: DumpKind): string => {
+const describeDump = (d: RestoreReport): string => {
   const parts = [`${d.format} dump`];
   if (d.compression !== 'none') parts.push(`${d.compression}-compressed`);
   if (d.sourceVersion && d.targetVersion && d.sourceVersion !== d.targetVersion) {
@@ -137,7 +137,7 @@ export const PostgresManager = () => {
   const [restoreError, setRestoreError] = useState<string | null>(null);
   // What the server made of the upload — shown on success so a cross-version or
   // recompressed restore is visible rather than silent.
-  const [restoreDetected, setRestoreDetected] = useState<DumpKind | null>(null);
+  const [restoreReport, setRestoreReport] = useState<RestoreReport | null>(null);
 
   // Drop-database confirmation. dropTarget doubles as the dialog's open flag;
   // dropConfirm must match the database name exactly before the button unlocks.
@@ -305,7 +305,7 @@ export const PostgresManager = () => {
     setRestoreStage('idle');
     setRestoreProgress(null);
     setRestoreError(null);
-    setRestoreDetected(null);
+    setRestoreReport(null);
   };
 
   // Suggest a safe target name from the picked filename so users get a sensible
@@ -321,7 +321,7 @@ export const PostgresManager = () => {
   const handleRestoreFilePick = (file: File | null) => {
     setRestoreFile(file);
     setRestoreError(null);
-    setRestoreDetected(null);
+    setRestoreReport(null);
     if (file && !restoreTarget) {
       setRestoreTarget(suggestTargetName(file.name));
     }
@@ -349,15 +349,18 @@ export const PostgresManager = () => {
           },
         },
       );
-      setRestoreDetected(result.detected ?? null);
+      setRestoreReport(result.report ?? null);
       setRestoreStage('success');
       // Refresh the database grid so the freshly-restored DB shows up.
       await loadDatabases();
-      // Auto-close after a short pause so the success state is visible.
-      setTimeout(() => {
-        setRestoreOpen(false);
-        resetRestoreForm();
-      }, 1400);
+      // Auto-close after a short pause so the success state is visible — but not
+      // when there are warnings to read; those need the user to dismiss.
+      if (!result.report?.warnings?.length) {
+        setTimeout(() => {
+          setRestoreOpen(false);
+          resetRestoreForm();
+        }, 1400);
+      }
     } catch (err) {
       setRestoreStage('error');
       setRestoreError(err instanceof Error ? err.message : 'Restore failed');
@@ -1101,8 +1104,22 @@ export const PostgresManager = () => {
                                 <Database className="h-4 w-4 mt-0.5 shrink-0 text-[var(--accent-green)]" />
                                 <div className="min-w-0">
                                   <div>Database <span className="font-mono">{restoreTarget}</span> restored.</div>
-                                  {restoreDetected && (
-                                    <div className="text-xs text-[var(--ink-muted)] mt-0.5">{describeDump(restoreDetected)}</div>
+                                  {restoreReport && (
+                                    <div className="text-xs text-[var(--ink-muted)] mt-0.5">{describeDump(restoreReport)}</div>
+                                  )}
+                                  {/* Statements PostgreSQL refused. The data is in — these are
+                                      almost always grants to a role this host doesn't have. */}
+                                  {!!restoreReport?.warnings?.length && (
+                                    <details className="mt-1.5 text-xs">
+                                      <summary className="cursor-pointer text-[var(--ink-muted)] hover:text-[var(--ink)]">
+                                        {restoreReport.warnings.length} statement type(s) skipped — data restored
+                                      </summary>
+                                      <ul className="mt-1 space-y-0.5 font-mono text-[11px] text-[var(--ink-muted)]">
+                                        {restoreReport.warnings.map((w) => (
+                                          <li key={w} className="break-words">{w}</li>
+                                        ))}
+                                      </ul>
+                                    </details>
                                   )}
                                 </div>
                               </div>

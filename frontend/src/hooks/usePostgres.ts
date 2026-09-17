@@ -6,19 +6,23 @@ const API_BASE = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_AP
   ? `${import.meta.env.VITE_API_URL}/api`
   : '/api';
 
-// DumpKind mirrors the server's auto-detection result: what the uploaded file
-// actually turned out to be, independent of its filename.
-export interface DumpKind {
+// RestoreReport mirrors the server's result: what the uploaded file actually
+// turned out to be (independent of its filename), and anything PostgreSQL
+// complained about while replaying it.
+export interface RestoreReport {
   compression: 'none' | 'gzip' | 'bzip2';
   format: 'plain' | 'custom' | 'tar';
   sourceVersion: string; // PostgreSQL version that wrote the dump, "" if unstated
   targetVersion: string; // PostgreSQL version that received it
+  // Distinct errors, each with an occurrence count. The restore still completed
+  // and the data is in — these are statements that were skipped.
+  warnings?: string[];
 }
 
 export interface RestoreResult {
   targetDatabase: string;
   bytesRestored: number;
-  detected?: DumpKind;
+  report?: RestoreReport;
 }
 
 export const usePostgres = () => {
@@ -288,7 +292,7 @@ export const usePostgres = () => {
                 resolve({
                   targetDatabase: data.target_database,
                   bytesRestored: data.bytes_restored ?? 0,
-                  detected: data.detected,
+                  report: data.report,
                 });
               } catch {
                 reject(new Error('Invalid response from server'));
