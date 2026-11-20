@@ -6,6 +6,7 @@ import (
 
     "backend/controllers"
     "backend/middleware"
+    "backend/vault"
     "github.com/gin-contrib/cors"
     "github.com/gin-gonic/gin"
     "gorm.io/gorm"
@@ -22,8 +23,23 @@ func splitAndTrim(csv string) []string {
     return out
 }
 
-func SetupRouter(db *gorm.DB) *gin.Engine {
+func SetupRouter(db *gorm.DB, vaultSvc *vault.Service) *gin.Engine {
     r := gin.Default()
+
+    // Client IPs feed the audit logs and the vault's MFA rate limiter, so
+    // X-Forwarded-For must only be believed when it comes from our own proxy.
+    // gin's default trusts every peer, which let any caller spoof its IP.
+    // TRUSTED_PROXIES is a comma-separated list of IPs/CIDRs; the default
+    // covers loopback and the private ranges Docker networks use (the nginx
+    // container in front of this API). nginx overwrites X-Forwarded-For with
+    // the real peer address, see frontend/nginx.conf.
+    trusted := splitAndTrim(os.Getenv("TRUSTED_PROXIES"))
+    if len(trusted) == 0 {
+        trusted = []string{"127.0.0.1/8", "::1/128", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "fc00::/7"}
+    }
+    if err := r.SetTrustedProxies(trusted); err != nil {
+        panic("invalid TRUSTED_PROXIES: " + err.Error())
+    }
 
     // CORS. CORS_ALLOWED_ORIGINS is a comma-separated allowlist, e.g.
     // "https://portal.nexgensis.com,http://localhost:3000". It falls back to
@@ -67,13 +83,18 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
     
     // SSO routes
     r.GET("/api/auth/microsoft", controllers.MicrosoftLogin(db))
-    r.GET("/api/auth/microsoft/callback", controllers.MicrosoftCallback(db))
+    r.GET("/api/auth/microsoft/callback", controllers.MicrosoftCallback(db, vaultSvc))
 
     // Routes requiring any authenticated user
     auth := r.Group("/api")
     auth.Use(middleware.JWT())
 
     auth.GET("/auth/verify", controllers.Verify(db))
+    // Ends server-side session state (the vault unlock) for this token's sid.
+    auth.POST("/auth/logout", controllers.Logout(db, vaultSvc))
+
+    // Password vault (its own membership, grant and MFA gates; see router/vault.go).
+    registerVaultRoutes(auth, db, vaultSvc)
 
     // User routes (can see servers, projects, apps + start/stop apps)
     auth.GET("/servers", controllers.ListServers(db))

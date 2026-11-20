@@ -3,11 +3,9 @@ package controllers
 import (
 	"log"
 	"net/http"
-	"os"
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/golang-jwt/jwt/v5"
 	"gorm.io/gorm"
 
 	"backend/models"
@@ -60,15 +58,7 @@ func Login(db *gorm.DB) gin.HandlerFunc {
 		db.Model(&user).UpdateColumn("last_login_at", now)
 		log.Printf("Login successful for user: %s", user.Username)
 
-		expiresAt := time.Now().Add(time.Hour * 24).Unix()
-		token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-			"username": user.Username,
-			"role":     user.Role,
-			"exp":      expiresAt,
-		})
-
-		// No fallback: JWT_SECRET is validated at startup in main().
-		tokenString, err := token.SignedString([]byte(os.Getenv("JWT_SECRET")))
+		tokenString, err := issueToken(&user, AuthPassword)
 		if err != nil {
 			respondWithError(c, http.StatusInternalServerError, "Could not generate token")
 			return

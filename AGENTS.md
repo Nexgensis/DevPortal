@@ -258,7 +258,7 @@ Login page supports **Microsoft SSO** (primary) and a **password fallback** (the
 
 No credential is hardcoded. A supplied `ADMIN_PASSWORD` is never written to the logs.
 
-**JWT**: secret comes from `JWT_SECRET` env var, expiry 7 days, claims `{ username, role, exp }`.
+**JWT**: secret comes from `JWT_SECRET` env var, expiry 24h, claims `{ user_id, username, role, sid, amr, exp }` (minted in `controllers/token.go` for password and SSO logins; `sid` keys server-side session state such as the vault unlock, `amr` is `pwd` or `sso` and picks the vault's unlock method, see §18).
 
 **Microsoft SSO config** (from `docker-compose.yml` — these are real Entra ID values for the prod app):
 - `MICROSOFT_CLIENT_ID: dcf16509-91a6-43a0-b0b2-85fe33d7a43f`
@@ -364,6 +364,7 @@ GET    /api/auth/microsoft/callback     SSO callback handler
 **Authenticated (JWT required)**
 ```
 GET    /api/auth/verify                 Validate current token
+POST   /api/auth/logout                 End server-side session state (locks the vault for this token's sid)
 GET    /api/servers                     List servers (visible to all users)
 POST   /api/servers/refresh             Refresh status of all servers (Docker API ping)
 POST   /api/servers/:id/test            Test Docker API connection (mTLS ping)
@@ -396,6 +397,31 @@ PUT    /api/users/:id
 DELETE /api/users/:id
 ```
 
+**Password vault (JWT + role and grants read live from the DB + MFA unlock)** — see §18
+```
+GET    /api/vault/status                Enrolled? unlocked until? locked out?   (no unlock needed)
+POST   /api/vault/mfa/enroll            New TOTP secret + QR (pending)          (no unlock needed, rate limited)
+POST   /api/vault/mfa/enroll/confirm    Activate + 10 recovery codes + unlock   (no unlock needed, rate limited)
+POST   /api/vault/unlock                {code} or {recoveryCode} → 24h unlock   (no unlock needed, rate limited)
+POST   /api/vault/unlock/microsoft      → {url}: fresh Microsoft sign-in; returns via /api/auth/microsoft/callback (rate limited)
+POST   /api/vault/lock                  Lock now                                (no unlock needed)
+GET    /api/vault/projects?q=           List/search clients (matches app names, account labels, usernames)
+POST   /api/vault/projects   PUT/DELETE /api/vault/projects/:id   (admin; delete refused while it has apps)
+GET    /api/vault/projects/:id/apps               Apps with their accounts nested (never includes secrets)
+POST   /api/vault/projects/:id/apps               Create app {name, loginUrl, description}
+PUT/DELETE /api/vault/apps/:id                    (delete refused while it has accounts)
+POST   /api/vault/apps/:id/credentials            Create account {label, username, password, notes}
+PUT    /api/vault/credentials/:id                 Update (blank password = keep; notes "" = clear)
+DELETE /api/vault/credentials/:id                 Hard delete
+POST   /api/vault/credentials/:id/reveal          {field: password|notes, purpose: view|copy} → plaintext, audited first
+GET    /api/vault/projects/:id/grants             (admin) Who has access to this client
+POST   /api/vault/projects/:id/grants             (admin) {userId, appId ("" = whole client), level view|edit, expiresAt|null}; same scope again = update
+DELETE /api/vault/grants/:id                      (admin) Revoke, effective on the next request
+GET    /api/vault/audit                           (admin) Append-only vault audit trail
+GET    /api/vault/members                         (admin) Admins + people with grants, app-MFA state
+POST   /api/vault/members/:id/mfa/reset           (admin) Reset someone else's authenticator-app MFA
+```
+
 ---
 
 ## 10. Database schema
@@ -411,6 +437,10 @@ GORM auto-migrates these on boot (`db.AutoMigrate(...)` in `main.go`):
 | **audit_logs** | `id` UUID PK, `user_id`, `username`, `action` (`start_app`, `stop_app`, `create_*`, `update_*`, `delete_*`, `sso_login`, ...), `resource_type`, `resource_name`, `details`, `ip_address`, `user_agent` | Append-only |
 
 All tables have GORM soft-delete via `deleted_at` (indexed) — **except server deletion**, which is a **hard delete**: `DeleteServer` ([backend/controllers/server.go](backend/controllers/server.go)) uses `Unscoped().Delete()` and, in the same transaction, hard-deletes the server's apps first (the `fk_apps_server` foreign key would otherwise block it). So deleting a server physically removes it and its apps from the DB.
+
+---
+
+**Password vault tables** are created by `migrations/005_password_vault.go` (explicit SQL, not AutoMigrate — they need partial/functional indexes, CHECKs and a trigger): `vault_projects` (clients), `vault_apps` (name + login URL, unique per project), `vault_credentials` (accounts: `app_id`, `label`, `username`, per-field `*_ct` ciphertext+GCM tag and `*_nonce`, `key_version`), `vault_mfa` (encrypted TOTP secret, replay step, lockout counters), `vault_recovery_codes` (bcrypt), `vault_unlocks` (`user_id` + JWT `sid` → `expires_at`), `vault_grants` (non-admin access: user × client, optionally one app, `view`/`edit`, optional `expires_at`; unique per scope), `vault_stepups` (in-flight Microsoft unlocks: sha256(state) → user + sid + nonce, 10 min, single use), `vault_audit_events` (append-only: a trigger rejects UPDATE/DELETE/TRUNCATE). Not soft-deleted.
 
 ---
 
@@ -489,6 +519,11 @@ These are the values currently in `docker-compose.dev.yml` and the seeded admin 
 | `VITE_DEV_API_PROXY` | `http://api:8080` | frontend (Vite proxy target) |
 | `IN_DOCKER` | `1` | frontend (suppresses Vite auto-open) |
 | `CHOKIDAR_USEPOLLING` | `true` | frontend (file watch polling for Docker volumes) |
+| `VAULT_KEYS` | dev: a fixed dev-only key in `docker-compose.dev.yml`; prod: unset = vault disabled | backend — password vault keys, `"<version>:<base64 32 bytes>[,...]"`. Generate with `vaultctl genkey`. **Back it up separately from DB backups.** |
+| `VAULT_ACTIVE_KEY_VERSION` | `1` (defaults to highest version) | backend — which vault key new writes use |
+| `VAULT_SSO_AUTH_CONTEXT` | unset (recommended in prod: `c1`) | backend — Entra Conditional Access authentication context the vault unlock asks for and requires in the ID token's `acrs`. With a CA policy of "MFA + sign-in frequency Every time" on it, every unlock needs a fresh Microsoft Authenticator approval. Must look like `c1`…`c99` or the backend refuses to start. |
+| `VAULT_SSO_REQUIRE_MFA_CLAIM` | `true` | backend — "Unlock with Microsoft" requires the ID token's `amr` to contain `mfa`. `false` = trust the tenant's Conditional Access + the fresh-sign-in check (only if your tokens lack `amr`). |
+| `TRUSTED_PROXIES` | unset → loopback + private ranges | backend — peers whose `X-Forwarded-For` is believed (client IP for audit + rate limits) |
 | `ADMIN_USERNAME` / `ADMIN_PASSWORD` | unset | backend (seeds the first admin; password generated + logged once if blank) |
 
 Secrets are **never** inlined in either compose file — both read them from the
@@ -626,3 +661,38 @@ There is no automated migration for this — you'd write a one-off Go script.
 - **Don't put new files at the repo root.** Frontend goes in `frontend/`, backend in `backend/`. (There was an incident where `node_modules` ended up at the root from running `npm install` without `cd frontend/` first — don't repeat.)
 - **Don't use `window.confirm()`** — use `AlertDialog` from [components/ui/alert-dialog.tsx](frontend/src/components/ui/alert-dialog.tsx).
 - **Don't commit `.env` files or any of the secret values in section 13** beyond local dev. Prod values come from the deploy environment.
+
+---
+
+## 18. Password vault
+
+Store for shared logins in three fixed levels: **client** (`vault_projects`) → **app** (`vault_apps`, holds the login URL) → **accounts** (`vault_credentials`, label + username + encrypted password/notes). Deletes don't cascade: a client with apps, or an app with accounts, can't be deleted. Code: [backend/vault/](backend/vault/) (business logic, no HTTP), [backend/vault/crypto/](backend/vault/crypto/) (AES-256-GCM + key ring), [backend/middleware/vault.go](backend/middleware/vault.go), [backend/controllers/vault.go](backend/controllers/vault.go), [backend/router/vault.go](backend/router/vault.go), [frontend/src/components/vault/](frontend/src/components/vault/).
+
+**Gates, in order:** JWT → `VaultMember` (role, `is_active` and grants re-read from the DB on every request; the token's role claim is not trusted) → `RequireVaultUnlock` (MFA verified for *this login session* within 24h) → `VaultAdminOnly` on admin routes. Everything except status/enroll/unlock/lock is behind the unlock, including client and app names.
+
+**Who sees what.** Admins: everything. Anyone else needs a grant ([backend/vault/access.go](backend/vault/access.go)), set by an admin from a client's **Access** button: whole client or one app, **view** (see, reveal, copy) or **edit** (also add/change/delete accounts; on a whole client also add/rename/delete apps), optional end date. Creating/renaming/deleting clients, grants, the activity log and MFA resets stay admin-only. The check is in the service (it resolves a credential's app/client inside the same transaction), every list/count/search query is filtered the same way, and anything outside a person's grants answers 404 so it doesn't reveal it exists. Revoking or expiring a grant applies on the next request. A user with no active grant gets 403 on every vault route and no Vault tab.
+
+**Sessions.** JWTs now carry a random `sid` (minted in `controllers/token.go` for both password and SSO logins). The vault unlock is a server-side row keyed by `(user_id, sid)`; it expires at `min(24h, JWT exp)` and `POST /api/auth/logout` revokes it. Tokens minted before `sid` existed get `SESSION_UPGRADE_REQUIRED` from the vault; signing in again fixes it.
+
+**Unlock with Microsoft (SSO sessions).** People who signed in with Microsoft (`amr=sso`) unlock by signing in to Microsoft *again* — the org's own MFA — and never set up the authenticator app. Flow ([backend/vault/entra.go](backend/vault/entra.go)): `POST /unlock/microsoft` stores a single-use `vault_stepups` row (10 min) and returns an authorize URL with `prompt=login&max_age=0`, a nonce and a `vault.`-prefixed state; Microsoft redirects to the **existing** SSO redirect URI (no Entra app change needed) and `MicrosoftCallback` hands `vault.` states to the vault. The code is exchanged server-side for an ID token, which must match: our tenant (`tid`/`iss`; needs `MICROSOFT_TENANT_ID` to be the tenant **GUID**, not `common`/`organizations`, or the feature stays off), `aud` = our client id, the stored nonce, `auth_time` after the attempt started (a real fresh sign-in), `amr` contains `mfa` (see `VAULT_SSO_REQUIRE_MFA_CLAIM`), and email/UPN = the portal user's email. Only then is *the login session that started it* unlocked. The browser lands on `/vault?unlock=ok` or `/vault?unlock_error=<code>`. Every attempt, failed or not, is audited. The ID token comes straight from the token endpoint over TLS for our client secret, so its signature isn't re-verified (OIDC Core §3.1.3.7 step 6). **Fresh Authenticator approval on every unlock (recommended).** `prompt=login` makes Microsoft re-ask for the password, but Microsoft may skip MFA it considers recent. To force a new Microsoft Authenticator approval (number matching) each time, an Entra admin sets up, once:
+1. Entra admin center → Protection → Conditional Access → **Authentication contexts** → New: name "Vault unlock", id `c1`, tick *Publish to apps*.
+2. Conditional Access → **New policy** "Vault unlock – fresh MFA": Users = everyone who uses the vault; Target resources → *Authentication context* → "Vault unlock"; Grant → *Require authentication strength* "Multifactor authentication" (or *Passwordless MFA* to insist on Authenticator); Session → *Sign-in frequency* → **Every time**. Turn it **On**.
+3. Set `VAULT_SSO_AUTH_CONTEXT=c1` and restart the backend.
+The sign-in URL then carries `claims={"id_token":{"acrs":{"essential":true,"value":"c1"}}}` and the backend rejects any ID token whose `acrs` lacks `c1` (`unlock_error=no_approval`). Do step 3 only after the policy is **On**: the context is what proves the fresh approval happened, and the backend fails closed (vault stays locked) whenever `c1` is missing from the token. Test with one person first.
+
+**First time in prod:** if the first unlock says "Microsoft didn't confirm MFA", your tenant's tokens lack `amr`; set `VAULT_SSO_REQUIRE_MFA_CLAIM=false` to rely on Conditional Access + the fresh-sign-in check.
+
+**Authenticator app (local/password sessions, break-glass admins).** TOTP (SHA-1, 6 digits, 30s, ±1 step), secret encrypted with the vault key. A used step can't be replayed. 5 failures in 15 min lock that admin's MFA for 15 min (stored in `vault_mfa`, so restarts don't reset it), plus 10 req/min per IP on the MFA endpoints (in-memory; move to Redis if the backend is ever scaled out). 10 single-use bcrypt'd recovery codes. Lost device: recovery code → or an admin resets it (Vault → People & MFA) → or `vaultctl reset-mfa <username>` on the server.
+
+**Encryption.** AES-256-GCM, fresh 12-byte nonce per field per write, AAD = `vault:v1|credential|<id>|<field>` so a ciphertext copied to another row/field fails to decrypt. Keys come only from `VAULT_KEYS` (never `ENCRYPTION_KEY`). Every update re-seals both fields with the active key.
+
+**Rotating vault keys (no downtime):**
+1. `vaultctl genkey` → add as the next version: `VAULT_KEYS="1:<old>,2:<new>"`, `VAULT_ACTIVE_KEY_VERSION=2`, restart.
+2. `docker compose exec backend ./vaultctl rotate` (safe to re-run).
+3. `./vaultctl key-usage` shows 0 rows on v1 → remove v1 from `VAULT_KEYS`, restart.
+
+**Audit.** `vault_audit_events` is append-only (DB trigger). The audit row is written in the same transaction as the change, and a reveal returns plaintext only after its audit row commits. Details never contain secrets.
+
+**Never** log request bodies or revealed values; `crypto.Secret` prints `[REDACTED]` under fmt/json. Reveal is POST + `Cache-Control: no-store`. The UI keeps plaintext in component state only, re-masks after 20s, and wipes the clipboard 30s after a copy (only if it still holds that value).
+
+**Tests** need PostgreSQL: `VAULT_TEST_DSN="postgres://postgres:<pw>@localhost:5432/<scratch db>?sslmode=disable" go test ./vault/... ./router/...` (each test creates and drops its own schema; without the env var those tests skip).

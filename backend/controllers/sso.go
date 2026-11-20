@@ -3,6 +3,7 @@ package controllers
 import (
 	"backend/models"
 	"backend/services"
+	"backend/vault"
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
@@ -16,7 +17,6 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/golang-jwt/jwt/v5"
 	"gorm.io/gorm"
 )
 
@@ -90,11 +90,17 @@ func MicrosoftLogin(db *gorm.DB) gin.HandlerFunc {
 	}
 }
 
-// MicrosoftCallback handles the OAuth callback
-func MicrosoftCallback(db *gorm.DB) gin.HandlerFunc {
+// MicrosoftCallback handles the OAuth callback. It also finishes "unlock the
+// vault with Microsoft", which shares this redirect URI; those attempts are
+// recognised by their state and validated server-side by the vault service.
+func MicrosoftCallback(db *gorm.DB, vaultSvc *vault.Service) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Verify state
 		state := c.Query("state")
+		if vault.IsVaultStepUpState(state) {
+			vaultStepUpCallback(c, vaultSvc)
+			return
+		}
 		storedState, err := c.Cookie("oauth_state")
 		frontendURL := os.Getenv("FRONTEND_URL")
 		secure := strings.HasPrefix(frontendURL, "https://")
@@ -307,18 +313,8 @@ func findOrCreateUser(db *gorm.DB, userInfo *MicrosoftUserInfo) (*models.User, e
 	return &user, nil
 }
 
-// Generate JWT token for user. JWT_SECRET is validated at startup in main(),
-// so there is no fallback here — a per-file default is how this drifted out of
-// sync with the middleware and silently rejected every SSO token.
+// generateJWT is kept as the SSO entry point; the claims live in issueToken
+// (token.go) so password and SSO logins mint identical sessions.
 func generateJWT(user *models.User) (string, error) {
-	secret := os.Getenv("JWT_SECRET")
-
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"user_id":  user.ID,
-		"username": user.Username,
-		"role":     user.Role,
-		"exp":      time.Now().Add(time.Hour * 24).Unix(), // 1 day — daily session expiry (matches password login)
-	})
-
-	return token.SignedString([]byte(secret))
+	return issueToken(user, AuthSSO)
 }

@@ -16,6 +16,8 @@ import { PostgresManager } from './components/PostgresManager';
 import { SecurityScanReport } from './components/SecurityScanReport';
 import { RunningApps } from './components/RunningApps';
 import { Wiki } from './components/Wiki';
+import { PasswordVault } from './components/vault/PasswordVault';
+import { vaultApi } from './lib/vaultApi';
 import { Badge } from './components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './components/ui/tabs';
 import { Plus, Activity, FolderKanban, Search, Server as ServerIcon, Zap, Clock, LogOut, Shield, Sun, Moon, Users as UsersIcon, FileText, ShieldCheck } from 'lucide-react';
@@ -28,12 +30,13 @@ import { AccentButton } from './components/ui/accent-button';
 
 // Per-view editorial header copy — each folder tab gets its own big serif title
 // + muted subtitle at the top of the workspace (keyed by activeView).
-const VIEW_META: Record<'applications' | 'config' | 'database-dump' | 'security-scan' | 'running-apps' | 'wiki', { title: string; subtitle: string }> = {
+const VIEW_META: Record<'applications' | 'config' | 'database-dump' | 'security-scan' | 'running-apps' | 'wiki' | 'vault', { title: string; subtitle: string }> = {
   'database-dump': { title: 'Database Dump', subtitle: 'Dump and download PostgreSQL databases from containers' },
   applications: { title: 'Applications', subtitle: 'Deploy and manage your Docker Compose applications' },
   'running-apps': { title: 'Running Apps', subtitle: 'Live view of compose projects and their frontend URLs per server' },
   'security-scan': { title: 'Security Scan Report', subtitle: 'Latest CI/CD security scan reports per repository and branch' },
   wiki: { title: 'Developer Wiki', subtitle: 'Onboarding guides, git workflow, deployment notes, and team knowledge' },
+  vault: { title: 'Password Vault', subtitle: 'Shared logins by client, encrypted, and unlocked with MFA' },
   config: { title: 'Configuration', subtitle: 'Servers, users, and system activity' },
 };
 
@@ -103,17 +106,34 @@ export default function App() {
   // the default view, and a non-admin who deep-links to /config is bounced out.
   // Both use replace so Back doesn't return to the path we just redirected away
   // from and bounce forward again.
+  // Non-admins can use the vault when a client or app was shared with them.
+  // The vault answers 403 for everyone else; null = still checking.
+  const [vaultShared, setVaultShared] = useState<boolean | null>(null);
+  useEffect(() => {
+    if (!isAuthenticated || isAdmin) {
+      setVaultShared(null);
+      return;
+    }
+    let cancelled = false;
+    vaultApi.status().then(() => !cancelled && setVaultShared(true), () => !cancelled && setVaultShared(false));
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated, isAdmin, user?.username]);
+  const canUseVault = isAdmin || vaultShared === true;
+
   useEffect(() => {
     if (!isAuthenticated) return;
     if (window.location.pathname.includes('/auth/callback')) return;
-    if (route.view === 'config' && !isAdmin) {
+    if (route.view === 'vault' && !isAdmin && vaultShared === null) return; // wait for the check
+    if ((route.view === 'config' && !isAdmin) || (route.view === 'vault' && !canUseVault)) {
       navigate({ view: DEFAULT_VIEW }, { replace: true });
       return;
     }
     if (buildUrl(route) !== window.location.pathname + window.location.search) {
       navigate({}, { replace: true });
     }
-  }, [isAuthenticated, isAdmin, route, navigate]);
+  }, [isAuthenticated, isAdmin, canUseVault, vaultShared, route, navigate]);
 
   // Check if we're on the auth callback route
   const isAuthCallback = window.location.pathname.includes('/auth/callback') ||
@@ -231,7 +251,7 @@ export default function App() {
 
       {/* Folder area — flat borderless card; the active (card-colored) tab melts into it */}
       <div className="relative z-10 flex-1 min-h-0 flex flex-col px-4 pb-4">
-        <FolderTabs active={activeView} onNavigate={setActiveView} isAdmin={isAdmin} />
+        <FolderTabs active={activeView} onNavigate={setActiveView} isAdmin={isAdmin} showVault={canUseVault} />
         <main className="folder-paper relative z-10 -mt-px flex-1 min-h-0 rounded-tr-[28px] rounded-b-[28px] border border-[var(--border)] overflow-auto">
           <div className="px-10 py-8">
           {/* Per-view editorial header — big serif title + muted subtitle for the active tab. */}
@@ -440,6 +460,10 @@ export default function App() {
 
           {activeView === 'wiki' && (
             <Wiki />
+          )}
+
+          {activeView === 'vault' && canUseVault && (
+            <PasswordVault currentUsername={user?.username ?? ''} onSignOut={logout} />
           )}
           </div>
         </main>
