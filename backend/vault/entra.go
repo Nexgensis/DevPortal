@@ -305,7 +305,7 @@ func (s *Service) checkIDToken(raw string, row models.VaultStepUp, user models.U
 		return bad("invalid", fmt.Sprintf("the sign-in token doesn't belong to this unlock attempt (token has nonce: %v)", c.Nonce != ""))
 	}
 	if c.AuthTime == 0 || time.Unix(c.AuthTime, 0).Before(row.CreatedAt.Add(-authTimeSkew)) {
-		return bad("not_fresh", "Microsoft reused an earlier sign-in; you need to sign in again")
+		return bad("not_fresh", fmt.Sprintf("Microsoft reused an earlier sign-in; you need to sign in again (auth_time %d, attempt started %d)", c.AuthTime, row.CreatedAt.Unix()))
 	}
 	if s.entra.RequireMFAClaim {
 		mfa := false

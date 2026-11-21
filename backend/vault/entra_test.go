@@ -110,6 +110,7 @@ func TestMicrosoftUnlockRejects(t *testing.T) {
 		"expired token": {func(c map[string]any) { c["exp"] = e.clock.Now().Add(-5 * time.Minute).Unix() }, "invalid"}, // test clock, not the wall clock
 		"no mfa":        {func(c map[string]any) { c["amr"] = []string{"pwd"} }, "no_mfa"},
 		"stale sign-in": {func(c map[string]any) { c["auth_time"] = c["auth_time"].(int64) - 3600 }, "not_fresh"},
+		"no auth_time":  {func(c map[string]any) { delete(c, "auth_time") }, "not_fresh"}, // Entra omits it without max_age
 		"other person":  {func(c map[string]any) { c["preferred_username"] = "mallory@example.test" }, "wrong_account"},
 		"garbage":       {nil, "invalid"},
 	}
