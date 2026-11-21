@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"regexp"
 	"strings"
 	"time"
@@ -210,14 +211,14 @@ func parseIDToken(raw string) (entraClaims, error) {
 	var c entraClaims
 	parts := strings.Split(raw, ".")
 	if len(parts) != 3 {
-		return c, errors.New("malformed id_token")
+		return c, fmt.Errorf("malformed id_token: %d parts", len(parts))
 	}
 	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
 	if err != nil {
-		return c, errors.New("malformed id_token payload")
+		return c, fmt.Errorf("malformed id_token payload: %v", err)
 	}
 	if err := json.Unmarshal(payload, &c); err != nil {
-		return c, errors.New("malformed id_token claims")
+		return c, fmt.Errorf("malformed id_token claims: %v", err)
 	}
 	return c, nil
 }
@@ -261,7 +262,7 @@ func (s *Service) CompleteMicrosoftUnlock(state, rawIDToken, ip, userAgent strin
 		}
 		if failure != nil {
 			// Commit the failure record and the consumed attempt.
-			return s.audit(tx, a, auditEntry{action: ActionMFAFailed, details: map[string]any{"method": "microsoft", "reason": failure.Code}})
+			return s.audit(tx, a, auditEntry{action: ActionMFAFailed, details: map[string]any{"method": "microsoft", "reason": failure.Code, "detail": failure.Msg}})
 		}
 		if !user.IsActive {
 			failure = &StepUpError{Code: "wrong_account", Msg: "your portal account is deactivated"}
@@ -285,20 +286,20 @@ func (s *Service) checkIDToken(raw string, row models.VaultStepUp, user models.U
 	bad := func(code, msg string) *StepUpError { return &StepUpError{Code: code, Msg: msg} }
 	c, err := parseIDToken(raw)
 	if err != nil {
-		return bad("invalid", "Microsoft returned an unreadable sign-in token")
+		return bad("invalid", "Microsoft returned an unreadable sign-in token: "+err.Error())
 	}
 	tenant := strings.ToLower(s.entra.TenantID)
 	if !strings.EqualFold(c.Tid, tenant) || !strings.EqualFold(c.Iss, "https://login.microsoftonline.com/"+tenant+"/v2.0") {
 		return bad("wrong_account", "that Microsoft account isn't from your organisation")
 	}
 	if c.Aud != s.entra.ClientID {
-		return bad("invalid", "the sign-in token was issued for a different app")
+		return bad("invalid", fmt.Sprintf("the sign-in token was issued for a different app (aud %q, want %q)", c.Aud, s.entra.ClientID))
 	}
 	if c.Exp == 0 || time.Unix(c.Exp, 0).Before(now) {
-		return bad("invalid", "the sign-in token has expired")
+		return bad("invalid", fmt.Sprintf("the sign-in token has expired (exp %d, now %d)", c.Exp, now.Unix()))
 	}
 	if c.Nonce == "" || subtle.ConstantTimeCompare([]byte(c.Nonce), []byte(row.Nonce)) != 1 {
-		return bad("invalid", "the sign-in token doesn't belong to this unlock attempt")
+		return bad("invalid", fmt.Sprintf("the sign-in token doesn't belong to this unlock attempt (token has nonce: %v)", c.Nonce != ""))
 	}
 	if c.AuthTime == 0 || time.Unix(c.AuthTime, 0).Before(row.CreatedAt.Add(-authTimeSkew)) {
 		return bad("not_fresh", "Microsoft reused an earlier sign-in; you need to sign in again")

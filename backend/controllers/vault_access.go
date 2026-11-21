@@ -131,6 +131,8 @@ func vaultStepUpCallback(c *gin.Context, svc *vault.Service) {
 	case err == nil:
 		back("unlock=ok")
 	case errors.As(err, &se):
+		// The reason carries no secrets (claim names, the app id, booleans).
+		log.Printf("vault: Microsoft unlock rejected: %s: %s", se.Code, se.Msg)
 		if code == "" {
 			back("unlock_error=cancelled")
 			return
