@@ -258,7 +258,7 @@ Login page supports **Microsoft SSO** (primary) and a **password fallback** (the
 
 No credential is hardcoded. A supplied `ADMIN_PASSWORD` is never written to the logs.
 
-**JWT**: secret comes from `JWT_SECRET` env var, expiry 24h, claims `{ user_id, username, role, sid, amr, exp }` (minted in `controllers/token.go` for password and SSO logins; `sid` keys server-side session state such as the vault unlock, `amr` is `pwd` or `sso` and picks the vault's unlock method, see §18).
+**JWT**: secret comes from `JWT_SECRET` env var, expiry 24h, claims `{ user_id, username, role, sid, amr, exp }` (minted in `controllers/token.go` for password and SSO logins; `sid` keys server-side session state such as the vault unlock, `amr` is `pwd` or `sso`, see §18).
 
 **Microsoft SSO config** (from `docker-compose.yml` — these are real Entra ID values for the prod app):
 - `MICROSOFT_CLIENT_ID: dcf16509-91a6-43a0-b0b2-85fe33d7a43f`
@@ -403,7 +403,6 @@ GET    /api/vault/status                Enrolled? unlocked until? locked out?   
 POST   /api/vault/mfa/enroll            New TOTP secret + QR (pending)          (no unlock needed, rate limited)
 POST   /api/vault/mfa/enroll/confirm    Activate + 10 recovery codes + unlock   (no unlock needed, rate limited)
 POST   /api/vault/unlock                {code} or {recoveryCode} → 24h unlock   (no unlock needed, rate limited)
-POST   /api/vault/unlock/microsoft      → {url}: fresh Microsoft sign-in; returns via /api/auth/microsoft/callback (rate limited)
 POST   /api/vault/lock                  Lock now                                (no unlock needed)
 GET    /api/vault/projects?q=           List/search clients (matches app names, account labels, usernames)
 POST   /api/vault/projects   PUT/DELETE /api/vault/projects/:id   (admin; delete refused while it has apps)
@@ -440,7 +439,7 @@ All tables have GORM soft-delete via `deleted_at` (indexed) — **except server 
 
 ---
 
-**Password vault tables** are created by `migrations/005_password_vault.go` (explicit SQL, not AutoMigrate — they need partial/functional indexes, CHECKs and a trigger): `vault_projects` (clients), `vault_apps` (name + login URL, unique per project), `vault_credentials` (accounts: `app_id`, `label`, `username`, per-field `*_ct` ciphertext+GCM tag and `*_nonce`, `key_version`), `vault_mfa` (encrypted TOTP secret, replay step, lockout counters), `vault_recovery_codes` (bcrypt), `vault_unlocks` (`user_id` + JWT `sid` → `expires_at`), `vault_grants` (non-admin access: user × client, optionally one app, `view`/`edit`, optional `expires_at`; unique per scope), `vault_stepups` (in-flight Microsoft unlocks: sha256(state) → user + sid + nonce, 10 min, single use), `vault_audit_events` (append-only: a trigger rejects UPDATE/DELETE/TRUNCATE). Not soft-deleted.
+**Password vault tables** are created by `migrations/005_password_vault.go` (explicit SQL, not AutoMigrate — they need partial/functional indexes, CHECKs and a trigger): `vault_projects` (clients), `vault_apps` (name + login URL, unique per project), `vault_credentials` (accounts: `app_id`, `label`, `username`, per-field `*_ct` ciphertext+GCM tag and `*_nonce`, `key_version`), `vault_mfa` (encrypted TOTP secret, replay step, lockout counters), `vault_recovery_codes` (bcrypt), `vault_unlocks` (`user_id` + JWT `sid` → `expires_at`), `vault_grants` (non-admin access: user × client, optionally one app, `view`/`edit`, optional `expires_at`; unique per scope), `vault_audit_events` (append-only: a trigger rejects UPDATE/DELETE/TRUNCATE). Not soft-deleted.
 
 ---
 
@@ -521,8 +520,6 @@ These are the values currently in `docker-compose.dev.yml` and the seeded admin 
 | `CHOKIDAR_USEPOLLING` | `true` | frontend (file watch polling for Docker volumes) |
 | `VAULT_KEYS` | dev: a fixed dev-only key in `docker-compose.dev.yml`; prod: unset = vault disabled | backend — password vault keys, `"<version>:<base64 32 bytes>[,...]"`. Generate with `vaultctl genkey`. **Back it up separately from DB backups.** |
 | `VAULT_ACTIVE_KEY_VERSION` | `1` (defaults to highest version) | backend — which vault key new writes use |
-| `VAULT_SSO_AUTH_CONTEXT` | unset (recommended in prod: `c1`) | backend — Entra Conditional Access authentication context the vault unlock asks for and requires in the ID token's `acrs`. With a CA policy of "MFA + sign-in frequency Every time" on it, every unlock needs a fresh Microsoft Authenticator approval. Must look like `c1`…`c99` or the backend refuses to start. |
-| `VAULT_SSO_REQUIRE_MFA_CLAIM` | `true` | backend — "Unlock with Microsoft" requires the ID token's `amr` to contain `mfa`. `false` = trust the tenant's Conditional Access + the fresh-sign-in check (only if your tokens lack `amr`). |
 | `TRUSTED_PROXIES` | unset → loopback + private ranges | backend — peers whose `X-Forwarded-For` is believed (client IP for audit + rate limits) |
 | `ADMIN_USERNAME` / `ADMIN_PASSWORD` | unset | backend (seeds the first admin; password generated + logged once if blank) |
 
@@ -674,15 +671,9 @@ Store for shared logins in three fixed levels: **client** (`vault_projects`) →
 
 **Sessions.** JWTs now carry a random `sid` (minted in `controllers/token.go` for both password and SSO logins). The vault unlock is a server-side row keyed by `(user_id, sid)`; it expires at `min(24h, JWT exp)` and `POST /api/auth/logout` revokes it. Tokens minted before `sid` existed get `SESSION_UPGRADE_REQUIRED` from the vault; signing in again fixes it.
 
-**Unlock with Microsoft (SSO sessions).** People who signed in with Microsoft (`amr=sso`) unlock by signing in to Microsoft *again* — the org's own MFA — and never set up the authenticator app. Flow ([backend/vault/entra.go](backend/vault/entra.go)): `POST /unlock/microsoft` stores a single-use `vault_stepups` row (10 min) and returns an authorize URL with `prompt=login&max_age=300` (`max_age` makes Entra include `auth_time`; `0` would make the ID token expire instantly), a nonce and a `vault.`-prefixed state; Microsoft redirects to the **existing** SSO redirect URI (no Entra app change needed) and `MicrosoftCallback` hands `vault.` states to the vault. The code is exchanged server-side for an ID token, which must match: our tenant (`tid`/`iss`; needs `MICROSOFT_TENANT_ID` to be the tenant **GUID**, not `common`/`organizations`, or the feature stays off), `aud` = our client id, the stored nonce, `auth_time` after the attempt started (a real fresh sign-in), `amr` contains `mfa` (see `VAULT_SSO_REQUIRE_MFA_CLAIM`), and email/UPN = the portal user's email. Only then is *the login session that started it* unlocked. The browser lands on `/vault?unlock=ok` or `/vault?unlock_error=<code>`. Every attempt, failed or not, is audited. The ID token comes straight from the token endpoint over TLS for our client secret, so its signature isn't re-verified (OIDC Core §3.1.3.7 step 6). **Fresh Authenticator approval on every unlock (recommended).** `prompt=login` makes Microsoft re-ask for the password, but Microsoft may skip MFA it considers recent. To force a new Microsoft Authenticator approval (number matching) each time, an Entra admin sets up, once:
-1. Entra admin center → Protection → Conditional Access → **Authentication contexts** → New: name "Vault unlock", id `c1`, tick *Publish to apps*.
-2. Conditional Access → **New policy** "Vault unlock – fresh MFA": Users = everyone who uses the vault; Target resources → *Authentication context* → "Vault unlock"; Grant → *Require authentication strength* "Multifactor authentication" (or *Passwordless MFA* to insist on Authenticator); Session → *Sign-in frequency* → **Every time**. Turn it **On**.
-3. Set `VAULT_SSO_AUTH_CONTEXT=c1` and restart the backend.
-The sign-in URL then carries `claims={"id_token":{"acrs":{"essential":true,"value":"c1"}}}` and the backend rejects any ID token whose `acrs` lacks `c1` (`unlock_error=no_approval`). Do step 3 only after the policy is **On**: the context is what proves the fresh approval happened, and the backend fails closed (vault stays locked) whenever `c1` is missing from the token. Test with one person first.
+**Unlock: the vault's own authenticator code, for everyone.** Every user (Microsoft SSO and password logins alike) unlocks with a 6-digit TOTP code from an authenticator app on their phone. It can be the Microsoft Authenticator app they already use for work: scanning the vault's QR code adds a separate "Nexus Aura Vault" entry. Logging in to the portal itself stays Microsoft SSO. *History:* v1.5.11-v1.5.14 had "Unlock with Microsoft" (a forced second Entra sign-in). It was removed in v1.5.15. On Entra Free there is no Conditional Access to force a fresh MFA, so it was only a second SSO sign-in. A third-party app also can't verify the code shown under the user's Microsoft work account, because Microsoft never shares that secret. Migration 005 now drops the old `vault_stepups` table.
 
-**First time in prod:** if the first unlock says "Microsoft didn't confirm MFA", your tenant's tokens lack `amr`; set `VAULT_SSO_REQUIRE_MFA_CLAIM=false` to rely on Conditional Access + the fresh-sign-in check.
-
-**Authenticator app (local/password sessions, break-glass admins).** TOTP (SHA-1, 6 digits, 30s, ±1 step), secret encrypted with the vault key. A used step can't be replayed. 5 failures in 15 min lock that admin's MFA for 15 min (stored in `vault_mfa`, so restarts don't reset it), plus 10 req/min per IP on the MFA endpoints (in-memory; move to Redis if the backend is ever scaled out). 10 single-use bcrypt'd recovery codes. Lost device: recovery code → or an admin resets it (Vault → People & MFA) → or `vaultctl reset-mfa <username>` on the server.
+**Authenticator app (TOTP).** TOTP (SHA-1, 6 digits, 30s, ±1 step), secret encrypted with the vault key. A used step can't be replayed. 5 failures in 15 min lock that admin's MFA for 15 min (stored in `vault_mfa`, so restarts don't reset it), plus 10 req/min per IP on the MFA endpoints (in-memory; move to Redis if the backend is ever scaled out). 10 single-use bcrypt'd recovery codes. Lost device: recovery code → or an admin resets it (Vault → People & MFA) → or `vaultctl reset-mfa <username>` on the server.
 
 **Encryption.** AES-256-GCM, fresh 12-byte nonce per field per write, AAD = `vault:v1|credential|<id>|<field>` so a ciphertext copied to another row/field fails to decrypt. Keys come only from `VAULT_KEYS` (never `ENCRYPTION_KEY`). Every update re-seals both fields with the active key.
 

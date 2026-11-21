@@ -35,10 +35,6 @@ func vaultError(c *gin.Context, err error) {
 		c.JSON(http.StatusTooManyRequests, gin.H{"error": lo.Error(), "code": "MFA_LOCKED_OUT", "lockedOutUntil": lo.Until})
 	case errors.Is(err, vault.ErrForbidden):
 		c.JSON(http.StatusForbidden, gin.H{"error": "You don't have permission to do that.", "code": "FORBIDDEN"})
-	case errors.Is(err, vault.ErrUseMicrosoft):
-		c.JSON(http.StatusConflict, gin.H{"error": err.Error(), "code": "USE_MICROSOFT"})
-	case errors.Is(err, vault.ErrMicrosoftUnlockUnavailable):
-		c.JSON(http.StatusConflict, gin.H{"error": err.Error(), "code": "MICROSOFT_UNAVAILABLE"})
 	case errors.Is(err, vault.ErrNotFound):
 		c.JSON(http.StatusNotFound, gin.H{"error": "Not found", "code": "NOT_FOUND"})
 	case errors.Is(err, vault.ErrInvalidCode):

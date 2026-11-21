@@ -83,7 +83,7 @@ func SetupRouter(db *gorm.DB, vaultSvc *vault.Service) *gin.Engine {
     
     // SSO routes
     r.GET("/api/auth/microsoft", controllers.MicrosoftLogin(db))
-    r.GET("/api/auth/microsoft/callback", controllers.MicrosoftCallback(db, vaultSvc))
+    r.GET("/api/auth/microsoft/callback", controllers.MicrosoftCallback(db))
 
     // Routes requiring any authenticated user
     auth := r.Group("/api")

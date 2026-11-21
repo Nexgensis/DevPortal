@@ -12,9 +12,7 @@ The vault adds a **Vault** tab to the Dev Portal. It stores shared logins in thr
 **Client** → **App** (holds the login URL) → **Accounts** (label, username, encrypted password, encrypted notes)
 
 - **Encryption:** passwords and notes are encrypted with AES-256-GCM. The keys are separate from the database: they come from the `VAULT_KEYS` env var.
-- **Unlock:** you have to unlock the vault with MFA, once per login session, for at most 24h.
-  - People who signed in with Microsoft unlock by doing a fresh Microsoft sign-in (the org's own MFA).
-  - Everyone else (password logins, break-glass admins) uses an authenticator app (TOTP).
+- **Unlock:** you have to unlock the vault with MFA, once per login session, for at most 24h. Since v1.5.15 everyone uses a 6-digit code from an authenticator app (TOTP). It can be the Microsoft Authenticator app people already have; the vault is added there as a separate entry. Portal login stays Microsoft SSO. The original commit also had "Unlock with Microsoft"; see section 4 for why it was removed.
 - **Access:** admins can see everything. Anyone else needs an admin to grant them access to a whole client or to one app, at either **View** or **Edit** level.
 - **Audit:** every reveal, copy and change goes into an append-only audit log.
 
@@ -109,7 +107,35 @@ The vault adds a **Vault** tab to the Dev Portal. It stores shared logins in thr
 ## 3. Things to know before deploying
 
 1. **Prod key:** generate one with `vaultctl genkey` and set `VAULT_KEYS="1:<key>"`. **Back the key up separately from the database backups.** If the key is lost, every stored secret is lost with it.
-2. **Microsoft unlock:** `MICROSOFT_TENANT_ID` must be the tenant **GUID**, not `common` or `organizations`. For a fresh Authenticator approval on every unlock, follow the Conditional Access steps in AGENTS.md §18. Set `VAULT_SSO_AUTH_CONTEXT=c1` only after that policy is switched **On**.
+2. **First unlock:** each person sets up the authenticator app once (scan a QR code, save 10 recovery codes). If someone loses their phone and their codes, an admin resets their MFA under Vault → People & MFA, or an operator runs `vaultctl reset-mfa <username>`.
 3. **Existing sessions:** tokens minted before this change have no `sid`. For those, the vault answers `SESSION_UPGRADE_REQUIRED`, and signing in again fixes it.
 4. **Rate limiter:** it's in memory, so it only works per backend instance. If the backend is ever scaled out, move it to Redis.
 5. **Dev key:** the key in `docker-compose.dev.yml` is committed on purpose and is for local dev only.
+
+---
+
+## 4. Later changes (v1.5.12 to v1.5.15)
+
+The original commit's "Unlock with Microsoft" failed in production. The fixes below found each cause in turn, and the feature was then removed.
+
+| Release | Change | Why |
+|---|---|---|
+| v1.5.12 | Log and audit the exact reason a Microsoft unlock is rejected. | Four different checks all showed the same error, "Microsoft's answer couldn't be verified". |
+| v1.5.13 | Stop sending `max_age=0`, and allow 2 minutes of clock skew on the token's `exp`. | With `max_age=0`, Entra issued ID tokens that expired the second they were issued. |
+| v1.5.14 | Send `max_age=300`. | Without `max_age`, Entra leaves `auth_time` out of the ID token, so freshness couldn't be proven. |
+| server | `VAULT_SSO_REQUIRE_MFA_CLAIM=false` | The tenant's ID tokens carry no `amr: mfa`. With this, the unlock finally worked. |
+| v1.5.15 | **Removed "Unlock with Microsoft" entirely.** Everyone, SSO users included, now unlocks with the vault's own TOTP code. | The tenant is on Entra Free, so there's no Conditional Access to force a fresh MFA, and the Microsoft unlock was just a second SSO sign-in. A third-party app also can't verify the code shown under a user's Microsoft work account, because Microsoft never shares that secret. |
+
+What v1.5.15 removed or changed:
+
+- **Backend:**
+  - Deleted `vault/entra.go`, `vault/entra_test.go` and the `/api/vault/unlock/microsoft` route.
+  - Removed the step-up hand-off from `controllers/sso.go`, the Entra setup from `main.go`, and the `VaultStepUp` model.
+  - Migration 005 now runs `DROP TABLE IF EXISTS vault_stepups`.
+  - SSO sessions may now enroll the authenticator app.
+  - The status response no longer has `methods`.
+- **Frontend:**
+  - The MFA gate always shows the authenticator flow; the Microsoft button and the `unlock_error` handling are gone.
+  - The setup text explains that the existing Microsoft Authenticator app can hold the vault entry.
+- **Config:** `VAULT_SSO_REQUIRE_MFA_CLAIM` and `VAULT_SSO_AUTH_CONTEXT` are gone from `docker-compose.yml` and AGENTS.md.
+- **Tests:** the router access test now covers an SSO user enrolling, unlocking with a code, and the grant rules. A request to the old route returns 404.

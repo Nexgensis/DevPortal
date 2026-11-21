@@ -43,15 +43,6 @@ type StatusDTO struct {
 	Role string `json:"role"`
 	// LoginMethod is how this session signed in to the portal: "pwd" | "sso".
 	LoginMethod string `json:"loginMethod"`
-	// Methods lists the ways this session may unlock. SSO sessions unlock
-	// with Microsoft and never need the authenticator app; password (local,
-	// break-glass) sessions use the app code.
-	Methods UnlockMethods `json:"methods"`
-}
-
-type UnlockMethods struct {
-	Microsoft bool `json:"microsoft"`
-	TOTP      bool `json:"totp"`
 }
 
 func (s *Service) Status(a Actor) (StatusDTO, error) {
@@ -80,8 +71,6 @@ func (s *Service) Status(a Actor) (StatusDTO, error) {
 		}
 		out.RecoveryCodesRemaining = int(n)
 	}
-	out.Methods.Microsoft = s.entra.Enabled()
-	out.Methods.TOTP = !s.ssoOnly(a) || out.Enrolled || out.PendingEnrollment
 	if exp, ok, err := s.UnlockExpiry(a.UserID, a.SessionID); err != nil {
 		return out, err
 	} else if ok {
@@ -109,9 +98,6 @@ type EnrollmentDTO struct {
 func (s *Service) StartEnrollment(a Actor) (EnrollmentDTO, error) {
 	if a.SessionID == "" {
 		return EnrollmentDTO{}, ErrSessionUpgradeRequired
-	}
-	if s.ssoOnly(a) {
-		return EnrollmentDTO{}, ErrUseMicrosoft
 	}
 	key, err := totp.Generate(totp.GenerateOpts{
 		Issuer:      TOTPIssuer,
@@ -503,7 +489,3 @@ func (s *Service) consumeRecoveryCode(tx *gorm.DB, userID, code string) (bool, i
 	}
 	return false, len(rows), nil
 }
-
-// ssoOnly: a Microsoft-SSO session on a server where Microsoft unlock works
-// never sets up the authenticator app — Microsoft already did MFA.
-func (s *Service) ssoOnly(a Actor) bool { return a.AuthMethod == "sso" && s.entra.Enabled() }

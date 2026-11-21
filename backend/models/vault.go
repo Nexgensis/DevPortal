@@ -137,22 +137,3 @@ type VaultGrant struct {
 }
 
 func (VaultGrant) TableName() string { return "vault_grants" }
-
-// VaultStepUp is one in-flight "unlock with Microsoft" attempt. The browser
-// leaves for Microsoft and comes back without our JWT, so this row is what
-// ties the callback to the portal login session that started it. Only a
-// hash of the state is stored; each row can be used once.
-type VaultStepUp struct {
-	StateHash   []byte `gorm:"primaryKey"`
-	UserID      string `gorm:"type:uuid;not null"`
-	SessionID   string `gorm:"not null"`
-	TokenExpiry *time.Time
-	Nonce       string    `gorm:"not null"`
-	IP          string    `gorm:"not null;default:''"`
-	UserAgent   string    `gorm:"not null;default:''"`
-	CreatedAt   time.Time `gorm:"not null"`
-	ExpiresAt   time.Time `gorm:"not null"`
-	UsedAt      *time.Time
-}
-
-func (VaultStepUp) TableName() string { return "vault_stepups" }

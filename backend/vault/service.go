@@ -48,7 +48,6 @@ type Service struct {
 	db     *gorm.DB
 	cipher *vcrypto.Cipher
 	now    func() time.Time
-	entra  EntraConfig
 }
 
 func NewService(db *gorm.DB, keys vcrypto.KeyProvider) *Service {

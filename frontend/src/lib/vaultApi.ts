@@ -88,8 +88,6 @@ export const vaultApi = {
   confirmEnrollment: (code: string) => request<VaultConfirmResult>('POST', '/mfa/enroll/confirm', { code }),
   unlock: (code: string) => request<VaultUnlockResult>('POST', '/unlock', { code }),
   unlockWithRecoveryCode: (recoveryCode: string) => request<VaultUnlockResult>('POST', '/unlock', { recoveryCode }),
-  /** Returns the Microsoft sign-in URL; the browser comes back to /vault. */
-  startMicrosoftUnlock: () => request<{ url: string }>('POST', '/unlock/microsoft'),
   lock: () => request<void>('POST', '/lock'),
 
   listProjects: (q = '') => request<VaultProject[]>('GET', `/projects${q ? `?q=${encodeURIComponent(q)}` : ''}`),

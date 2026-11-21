@@ -28,26 +28,6 @@ type Tab = 'logins' | 'activity' | 'people';
 
 const canEdit = (access: string) => access === 'admin' || access === 'edit';
 
-// Result codes Microsoft step-up sends back in the URL (/vault?unlock_error=…).
-const UNLOCK_ERRORS: Record<string, string> = {
-  wrong_account: 'You signed in to Microsoft as a different person than your portal account. Sign in with your own work account.',
-  no_mfa: "Microsoft didn't confirm MFA for that sign-in. Ask your admin to check the vault's MFA settings.",
-  no_approval: "Microsoft didn't ask for a fresh Authenticator approval for that sign-in, so the vault stayed locked. Ask your admin to check the vault's Conditional Access policy.",
-  not_fresh: 'Microsoft reused an earlier sign-in. Try again and enter your password when Microsoft asks.',
-  expired: 'That unlock attempt expired or was already used. Try again.',
-  cancelled: 'The Microsoft sign-in was cancelled.',
-  invalid: "Microsoft's answer couldn't be verified. Try again.",
-  unavailable: "Unlock with Microsoft isn't set up on this server.",
-  server: 'Something went wrong on the server. Try again.',
-};
-
-function readUnlockResult(): { ok: boolean; error: string | null } | null {
-  const q = new URLSearchParams(window.location.search);
-  if (q.get('unlock') === 'ok') return { ok: true, error: null };
-  const code = q.get('unlock_error');
-  return code ? { ok: false, error: UNLOCK_ERRORS[code] ?? UNLOCK_ERRORS.server } : null;
-}
-
 interface Props {
   currentUsername: string;
   onSignOut: () => void;
@@ -67,14 +47,6 @@ export function PasswordVault({ currentUsername, onSignOut }: Props) {
   const [statusError, setStatusError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>('logins');
   const [, forceTick] = useState(0);
-  // Coming back from "Unlock with Microsoft"? Read the result once, then
-  // drop it from the address bar.
-  const [unlockResult] = useState(readUnlockResult);
-  useEffect(() => {
-    if (!unlockResult) return;
-    window.history.replaceState(window.history.state, '', window.location.pathname);
-    if (unlockResult.ok) toast.success('Vault unlocked');
-  }, [unlockResult]);
 
   const refreshStatus = useCallback(async () => {
     try {
@@ -138,7 +110,6 @@ export function PasswordVault({ currentUsername, onSignOut }: Props) {
         status={status}
         onUnlocked={() => void refreshStatus()}
         onSignOut={onSignOut}
-        initialError={unlockResult?.error ?? null}
       />
     );
   }
@@ -864,9 +835,9 @@ function PeopleView({ currentUsername }: { currentUsername: string }) {
   return (
     <div className="flex flex-col gap-3">
       <p className="text-sm text-[var(--ink-muted)]">
-        Everyone who can open the vault: admins, plus anyone a client or app was shared with. People who sign in with
-        Microsoft unlock with Microsoft and need nothing here. For local logins using the authenticator app, if someone
-        loses their phone and recovery codes, reset their app MFA here so they can set it up again. You can't reset your own.
+        Everyone who can open the vault: admins, plus anyone a client or app was shared with. Everyone unlocks with a
+        6-digit code from their authenticator app. If someone loses their phone and their recovery codes, reset their
+        app MFA here so they can set it up again. You can't reset your own.
       </p>
       <ul className="bento-card divide-y divide-[var(--border)]">
         {admins.map((a) => (

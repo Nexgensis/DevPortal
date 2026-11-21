@@ -116,19 +116,9 @@ func CreatePasswordVault(db *gorm.DB) error {
 				ON vault_grants (user_id, project_id, COALESCE(app_id, '00000000-0000-0000-0000-000000000000'::uuid))`,
 			`CREATE INDEX IF NOT EXISTS vault_grants_project_idx ON vault_grants (project_id)`,
 
-			// In-flight "unlock with Microsoft" attempts (10 min, single use).
-			`CREATE TABLE IF NOT EXISTS vault_stepups (
-				state_hash   bytea PRIMARY KEY,
-				user_id      uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-				session_id   text NOT NULL,
-				token_expiry timestamptz,
-				nonce        text NOT NULL,
-				ip           text NOT NULL DEFAULT '',
-				user_agent   text NOT NULL DEFAULT '',
-				created_at   timestamptz NOT NULL,
-				expires_at   timestamptz NOT NULL,
-				used_at      timestamptz
-			)`,
+			// "Unlock with Microsoft" was removed in v1.5.15 (without Entra P1
+			// it was just a second SSO sign-in). Drop its scratch table.
+			`DROP TABLE IF EXISTS vault_stepups`,
 
 			// Audit: no FKs on purpose. Events must outlive the credential,
 			// project, or even user they describe.

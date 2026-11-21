@@ -3,7 +3,6 @@ package controllers
 import (
 	"backend/models"
 	"backend/services"
-	"backend/vault"
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
@@ -90,17 +89,11 @@ func MicrosoftLogin(db *gorm.DB) gin.HandlerFunc {
 	}
 }
 
-// MicrosoftCallback handles the OAuth callback. It also finishes "unlock the
-// vault with Microsoft", which shares this redirect URI; those attempts are
-// recognised by their state and validated server-side by the vault service.
-func MicrosoftCallback(db *gorm.DB, vaultSvc *vault.Service) gin.HandlerFunc {
+// MicrosoftCallback handles the OAuth callback
+func MicrosoftCallback(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Verify state
 		state := c.Query("state")
-		if vault.IsVaultStepUpState(state) {
-			vaultStepUpCallback(c, vaultSvc)
-			return
-		}
 		storedState, err := c.Cookie("oauth_state")
 		frontendURL := os.Getenv("FRONTEND_URL")
 		secure := strings.HasPrefix(frontendURL, "https://")

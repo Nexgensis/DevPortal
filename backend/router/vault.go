@@ -40,9 +40,6 @@ func registerVaultRoutes(api *gin.RouterGroup, db *gorm.DB, svc *vault.Service) 
 	v.POST("/mfa/enroll", mfaLimit, controllers.VaultStartEnrollment(svc))
 	v.POST("/mfa/enroll/confirm", mfaLimit, controllers.VaultConfirmEnrollment(svc))
 	v.POST("/unlock", mfaLimit, controllers.VaultUnlock(svc))
-	// Unlock with Microsoft: returns the sign-in URL. Microsoft redirects back
-	// to the shared SSO callback (/api/auth/microsoft/callback).
-	v.POST("/unlock/microsoft", mfaLimit, controllers.VaultStartMicrosoftUnlock(svc))
 	v.POST("/lock", controllers.VaultLock(svc))
 
 	u := v.Group("")

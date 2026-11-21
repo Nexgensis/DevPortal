@@ -13,8 +13,6 @@ export interface VaultStatus {
   role: 'admin' | 'member';
   /** How this portal session signed in. */
   loginMethod: 'pwd' | 'sso' | '';
-  /** Ways this session may unlock: Microsoft sign-in and/or authenticator app. */
-  methods: { microsoft: boolean; totp: boolean };
 }
 
 /** Caller's level on a client/app. "limited" = only some apps of the client
@@ -158,6 +156,4 @@ export type VaultErrorCode =
   | 'CONFLICT'
   | 'NOT_FOUND'
   | 'FORBIDDEN'
-  | 'USE_MICROSOFT'
-  | 'MICROSOFT_UNAVAILABLE'
   | 'UNKNOWN';

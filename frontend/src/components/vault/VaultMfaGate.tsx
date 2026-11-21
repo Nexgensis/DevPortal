@@ -17,25 +17,18 @@ interface Props {
   status: VaultStatus;
   onUnlocked: () => void;
   onSignOut: () => void;
-  /** Message from a Microsoft sign-in that just came back unsuccessful. */
-  initialError?: string | null;
 }
 
 function formatUntil(iso: string) {
   return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
-export function VaultMfaGate({ status, onUnlocked, onSignOut, initialError = null }: Props) {
+export function VaultMfaGate({ status, onUnlocked, onSignOut }: Props) {
   const [mode, setMode] = useState<Mode>(status.enrolled ? 'unlock' : 'enroll');
-  // SSO sessions unlock by signing in to Microsoft again (their org's MFA);
-  // the authenticator app is for local (password) logins.
-  const microsoftFirst = status.methods.microsoft && (status.loginMethod === 'sso' || !status.methods.totp);
-  const [useApp, setUseApp] = useState(false);
-  const [msError, setMsError] = useState<string | null>(initialError);
   const [code, setCode] = useState('');
   const [recovery, setRecovery] = useState('');
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(initialError);
+  const [error, setError] = useState<string | null>(null);
   const [lockedUntil, setLockedUntil] = useState<string | null>(status.lockedOutUntil);
   const [enrollment, setEnrollment] = useState<VaultEnrollment | null>(null);
   const [codes, setCodes] = useState<string[]>([]);
@@ -142,43 +135,6 @@ export function VaultMfaGate({ status, onUnlocked, onSignOut, initialError = nul
     );
   }
 
-  const startMicrosoft = async () => {
-    setBusy(true);
-    setMsError(null);
-    try {
-      const { url } = await vaultApi.startMicrosoftUnlock();
-      // Full-page redirect: Microsoft sends the browser back to /vault.
-      window.location.assign(url);
-    } catch (e) {
-      setMsError(e instanceof Error ? e.message : 'Could not start the Microsoft sign-in');
-      setBusy(false);
-    }
-  };
-
-  if (microsoftFirst && !useApp && mode !== 'codes') {
-    return (
-      <GateCard icon={ShieldCheck} title="Unlock the vault">
-        <p className="text-sm text-[var(--ink-muted)]">
-          Confirm it's you by signing in to Microsoft again and approving the request in Microsoft Authenticator. The
-          vault then stays unlocked for this session for up to 24 hours.
-        </p>
-        {msError && <ErrorLine>{msError}</ErrorLine>}
-        <AccentButton onClick={() => void startMicrosoft()} loading={busy} className="w-full mt-2">
-          <MicrosoftMark /> Unlock with Microsoft
-        </AccentButton>
-        {status.methods.totp && (
-          <button
-            type="button"
-            className="w-full text-center text-sm text-[var(--ink-muted)] underline hover:text-[var(--ink)]"
-            onClick={() => setUseApp(true)}
-          >
-            Use my authenticator app instead
-          </button>
-        )}
-      </GateCard>
-    );
-  }
-
   if (mode === 'codes') {
     return (
       <GateCard icon={LifeBuoy} title="Save your recovery codes">
@@ -216,8 +172,12 @@ export function VaultMfaGate({ status, onUnlocked, onSignOut, initialError = nul
     return (
       <GateCard icon={Smartphone} title="Set up two-factor authentication">
         <p className="text-sm text-[var(--ink-muted)]">
-          The vault needs a 6-digit code from an authenticator app (Google Authenticator, Microsoft Authenticator,
-          1Password, Authy…) at least once every 24 hours.
+          The vault asks for a 6-digit code from an authenticator app on your phone at least once every 24 hours.
+          You can use the Microsoft Authenticator app you already have: scanning the QR code adds a separate vault
+          entry next to your work account. Google Authenticator, 1Password or Authy work too.
+        </p>
+        <p className="text-sm text-[var(--ink-muted)]">
+          This is a one-time setup and takes about a minute.
         </p>
         {error && <ErrorLine>{error}</ErrorLine>}
         <AccentButton onClick={startEnrollment} loading={busy} className="w-full">
@@ -338,17 +298,5 @@ function ErrorLine({ children }: { children: React.ReactNode }) {
     <p role="alert" className="text-sm text-[var(--accent-destructive)]">
       {children}
     </p>
-  );
-}
-
-// Microsoft's four-square mark, drawn inline (no external asset).
-function MicrosoftMark() {
-  return (
-    <svg viewBox="0 0 21 21" className="h-4 w-4" aria-hidden="true">
-      <rect x="1" y="1" width="9" height="9" fill="#f25022" />
-      <rect x="11" y="1" width="9" height="9" fill="#7fba00" />
-      <rect x="1" y="11" width="9" height="9" fill="#00a4ef" />
-      <rect x="11" y="11" width="9" height="9" fill="#ffb900" />
-    </svg>
   );
 }

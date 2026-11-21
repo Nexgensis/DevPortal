@@ -4,7 +4,6 @@ import (
 	"errors"
 	"log"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -108,25 +107,6 @@ func main() {
 	default:
 		vaultSvc = vault.NewService(db, keyRing)
 		log.Printf("Password vault enabled (active key version %d, loaded %v)", keyRing.ActiveVersion(), keyRing.Versions())
-		// "Unlock with Microsoft" reuses the SSO app registration. It needs a
-		// real tenant GUID (not "common"/"organizations").
-		entra := vault.EntraConfig{
-			TenantID:        os.Getenv("MICROSOFT_TENANT_ID"),
-			ClientID:        os.Getenv("MICROSOFT_CLIENT_ID"),
-			RequireMFAClaim: os.Getenv("VAULT_SSO_REQUIRE_MFA_CLAIM") != "false",
-			AuthContext:     strings.TrimSpace(os.Getenv("VAULT_SSO_AUTH_CONTEXT")),
-		}
-		if entra.AuthContext != "" && !vault.ValidAuthContext(entra.AuthContext) {
-			log.Fatalf("VAULT_SSO_AUTH_CONTEXT must be an Entra authentication context id like c1, got %q", entra.AuthContext)
-		}
-		ssoReady := os.Getenv("SSO_ENABLED") == "true" && os.Getenv("MICROSOFT_CLIENT_SECRET") != "" && os.Getenv("MICROSOFT_REDIRECT_URI") != ""
-		switch {
-		case ssoReady && entra.Enabled():
-			vaultSvc = vaultSvc.WithEntra(entra)
-			log.Printf("Vault: unlock with Microsoft enabled (MFA claim required: %v, auth context: %q)", entra.RequireMFAClaim, entra.AuthContext)
-		case ssoReady:
-			log.Println("Vault: unlock with Microsoft disabled — MICROSOFT_TENANT_ID must be your tenant's GUID")
-		}
 	}
 
 	// Start background timer service for auto-stopping apps
