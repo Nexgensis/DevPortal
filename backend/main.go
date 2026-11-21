@@ -1,8 +1,10 @@
 package main
 
 import (
+	"errors"
 	"log"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -11,6 +13,8 @@ import (
 	"backend/models"
 	"backend/router"
 	"backend/services"
+	"backend/vault"
+	vcrypto "backend/vault/crypto"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
@@ -87,6 +91,44 @@ func main() {
 		log.Fatalf("Failed to widen audit_logs.resource_id: %v", err)
 	}
 
+	if err := migrations.CreatePasswordVault(db); err != nil {
+		log.Fatalf("Failed to create password vault tables: %v", err)
+	}
+
+	// Password vault keys. Unset → the vault answers 503 and the rest of the
+	// portal runs normally. Set but malformed → refuse to start: a typo in a
+	// key must never silently become "secrets unreadable" at first use.
+	var vaultSvc *vault.Service
+	keyRing, err := vcrypto.KeyRingFromEnv()
+	switch {
+	case errors.Is(err, vcrypto.ErrNotConfigured):
+		log.Println("VAULT_KEYS is not set — password vault disabled")
+	case err != nil:
+		log.Fatalf("Invalid vault key configuration: %v", err)
+	default:
+		vaultSvc = vault.NewService(db, keyRing)
+		log.Printf("Password vault enabled (active key version %d, loaded %v)", keyRing.ActiveVersion(), keyRing.Versions())
+		// "Unlock with Microsoft" reuses the SSO app registration. It needs a
+		// real tenant GUID (not "common"/"organizations").
+		entra := vault.EntraConfig{
+			TenantID:        os.Getenv("MICROSOFT_TENANT_ID"),
+			ClientID:        os.Getenv("MICROSOFT_CLIENT_ID"),
+			RequireMFAClaim: os.Getenv("VAULT_SSO_REQUIRE_MFA_CLAIM") != "false",
+			AuthContext:     strings.TrimSpace(os.Getenv("VAULT_SSO_AUTH_CONTEXT")),
+		}
+		if entra.AuthContext != "" && !vault.ValidAuthContext(entra.AuthContext) {
+			log.Fatalf("VAULT_SSO_AUTH_CONTEXT must be an Entra authentication context id like c1, got %q", entra.AuthContext)
+		}
+		ssoReady := os.Getenv("SSO_ENABLED") == "true" && os.Getenv("MICROSOFT_CLIENT_SECRET") != "" && os.Getenv("MICROSOFT_REDIRECT_URI") != ""
+		switch {
+		case ssoReady && entra.Enabled():
+			vaultSvc = vaultSvc.WithEntra(entra)
+			log.Printf("Vault: unlock with Microsoft enabled (MFA claim required: %v, auth context: %q)", entra.RequireMFAClaim, entra.AuthContext)
+		case ssoReady:
+			log.Println("Vault: unlock with Microsoft disabled — MICROSOFT_TENANT_ID must be your tenant's GUID")
+		}
+	}
+
 	// Start background timer service for auto-stopping apps
 	services.StartTimerService(db)
 
@@ -102,7 +144,7 @@ func main() {
 	}
 
 	// Setup router with all routes and middleware
-	r := router.SetupRouter(db)
+	r := router.SetupRouter(db, vaultSvc)
 
 	// Get port from environment or use default
 	port := os.Getenv("PORT")

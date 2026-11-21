@@ -60,6 +60,7 @@
   --tab-scan: #0F9D9D;              /* teal — security scan */
   --tab-running: #FF6B35;           /* orange-coral — running apps */
   --tab-wiki: #6D28D9;               /* deep violet — wiki / dev docs */
+  --tab-vault: #B45309;              /* burnished amber — password vault */
 
   /* Legacy aliases (kept so untouched components don't break) */
   --accent-lime: var(--accent-pink);
@@ -148,6 +149,7 @@
   --tab-scan: #0F9D9D;              /* teal — security scan */
   --tab-running: #FF6B35;           /* orange-coral — running apps */
   --tab-wiki: #8B5CF6;               /* violet — wiki / dev docs (dark variant) */
+  --tab-vault: #D97706;              /* amber — password vault (dark variant) */
 
   --sidebar-foreground: var(--ink);
 }

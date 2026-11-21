@@ -20,6 +20,7 @@ export type View =
   | 'running-apps'
   | 'security-scan'
   | 'wiki'
+  | 'vault'
   | 'config'
   // Reachable by URL only — the nav entry is commented out in FolderTabs.
   | 'applications';
@@ -51,6 +52,7 @@ const VIEWS: View[] = [
   'running-apps',
   'security-scan',
   'wiki',
+  'vault',
   'config',
   'applications',
 ];

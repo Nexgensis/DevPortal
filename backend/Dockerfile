@@ -6,13 +6,16 @@ COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
-RUN go build -o main .
+RUN go build -o main . && go build -o vaultctl ./cmd/vaultctl
 
 # Minimal runtime image
 FROM alpine:3.20
 
 WORKDIR /app
 COPY --from=builder /app/main .
+# Operator CLI for the password vault: genkey, key-usage, rotate, reset-mfa.
+#   docker compose exec backend ./vaultctl rotate
+COPY --from=builder /app/vaultctl .
 # Copy .env file if it exists (optional)
 COPY .env* ./
 

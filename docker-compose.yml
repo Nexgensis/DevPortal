@@ -63,6 +63,21 @@ services:
       NEXUS_URL: "${NEXUS_URL:-}"
       NEXUS_USER: "${NEXUS_USER:-}"
       NEXUS_PASS: "${NEXUS_PASS:-}"
+      # Admin password vault. Optional: unset = vault disabled (503), rest of
+      # the portal unaffected. Generate a key with `./vaultctl genkey`, set
+      # VAULT_KEYS="1:<key>", and back the key up OUTSIDE the database backups
+      # — losing it means losing every stored secret. See AGENTS.md (vault).
+      VAULT_KEYS: "${VAULT_KEYS:-}"
+      VAULT_ACTIVE_KEY_VERSION: "${VAULT_ACTIVE_KEY_VERSION:-}"
+      # "Unlock with Microsoft" checks the ID token's amr claim lists "mfa".
+      # Set to false only if your tenant's tokens don't carry amr (see AGENTS.md §18).
+      VAULT_SSO_REQUIRE_MFA_CLAIM: "${VAULT_SSO_REQUIRE_MFA_CLAIM:-true}"
+      # Conditional Access authentication context (e.g. c1) whose policy forces a
+      # fresh Microsoft Authenticator approval on every vault unlock. Recommended.
+      VAULT_SSO_AUTH_CONTEXT: "${VAULT_SSO_AUTH_CONTEXT:-}"
+      # Proxies whose X-Forwarded-For is believed (default: loopback + private
+      # ranges, i.e. the nginx container).
+      TRUSTED_PROXIES: "${TRUSTED_PROXIES:-}"
     ports:
       - "8080:8080"
     volumes:

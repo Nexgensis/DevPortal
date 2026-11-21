@@ -36,6 +36,22 @@ func JWT() gin.HandlerFunc {
 		}
 		c.Set("user", claims)
 		c.Set("username", claims["username"])
+		// Session id and expiry: the password vault binds its MFA unlock to
+		// them. Tokens minted before "sid" existed simply have none.
+		if sid, ok := claims["sid"].(string); ok {
+			c.Set("sid", sid)
+		}
+		if uid, ok := claims["user_id"].(string); ok {
+			c.Set("user_id", uid)
+		}
+		// How this session signed in ("pwd" or "sso"); the vault picks the
+		// unlock method from it.
+		if amr, ok := claims["amr"].(string); ok {
+			c.Set("auth_method", amr)
+		}
+		if exp, err := claims.GetExpirationTime(); err == nil && exp != nil {
+			c.Set("token_exp", exp.Time)
+		}
 		c.Next()
 	}
 }

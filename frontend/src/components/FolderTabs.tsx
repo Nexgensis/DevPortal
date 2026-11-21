@@ -1,8 +1,8 @@
-import { Settings, Database, ShieldCheck, Rocket, BookOpen } from 'lucide-react';
+import { Settings, Database, ShieldCheck, Rocket, BookOpen, KeyRound } from 'lucide-react';
 // TODO(applications): re-import `FolderKanban` when the Applications tab is re-enabled.
 import type { LucideIcon } from 'lucide-react';
 
-export type FolderView = 'applications' | 'database-dump' | 'security-scan' | 'running-apps' | 'wiki' | 'config';
+export type FolderView = 'applications' | 'database-dump' | 'security-scan' | 'running-apps' | 'wiki' | 'vault' | 'config';
 
 interface FolderDef {
   id: FolderView;
@@ -21,6 +21,10 @@ const FOLDERS: FolderDef[] = [
   { id: 'running-apps', label: 'Running Apps', icon: Rocket, color: 'var(--tab-running)' },
   { id: 'security-scan', label: 'Security Scan', icon: ShieldCheck, color: 'var(--tab-scan)' },
   { id: 'wiki', label: 'Dev Wiki', icon: BookOpen, color: 'var(--tab-wiki)' },
+  // Password vault: admins, plus anyone a client/app was shared with
+  // (showVault). Every /api/vault route re-checks role and grants in the
+  // database; hiding the tab is only UX.
+  { id: 'vault', label: 'Vault', icon: KeyRound, color: 'var(--tab-vault)', adminOnly: true },
   { id: 'config', label: 'Config', icon: Settings, color: 'var(--tab-users)', adminOnly: true },
 ];
 
@@ -28,10 +32,12 @@ interface FolderTabsProps {
   active: FolderView;
   onNavigate: (view: FolderView) => void;
   isAdmin: boolean;
+  /** A non-admin who has vault access shared with them. */
+  showVault?: boolean;
 }
 
-export function FolderTabs({ active, onNavigate, isAdmin }: FolderTabsProps) {
-  const folders = FOLDERS.filter((f) => !f.adminOnly || isAdmin);
+export function FolderTabs({ active, onNavigate, isAdmin, showVault = false }: FolderTabsProps) {
+  const folders = FOLDERS.filter((f) => !f.adminOnly || isAdmin || (f.id === 'vault' && showVault));
 
   return (
     // Tabs sit IN FRONT of the panel (z-20 row) and melt into it via their flared

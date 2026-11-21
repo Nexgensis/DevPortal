@@ -43,6 +43,11 @@ services:
       NEXUS_URL: "${NEXUS_URL:-}"
       NEXUS_USER: "${NEXUS_USER:-}"
       NEXUS_PASS: "${NEXUS_PASS:-}"
+      # Password vault — DEV-ONLY key, committed on purpose like JWT_SECRET
+      # above. Never reuse it anywhere else; prod gets its own from
+      # `vaultctl genkey`.
+      VAULT_KEYS: "1:9BXZ9TojwXSLKvJFGulhmUTh4ikLEXpDnHW3+nQMIVM="
+      VAULT_ACTIVE_KEY_VERSION: "1"
       # Pass through any local override via .env.dev if it exists.
     ports:
       - "8080:8080"

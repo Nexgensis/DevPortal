@@ -142,10 +142,23 @@ export function useAuth() {
     }
   };
 
-  // Logout is purely client-side: JWTs are stateless and the backend has no
-  // /auth/logout route, so the previous call to it 404'd on every sign-out.
-  // Dropping the token is what actually ends the session.
-  const logout = () => {
+  // Logout tells the backend first, so server-side session state (the
+  // password vault's MFA unlock) is closed, then drops the token locally. The
+  // local sign-out happens regardless: a network failure must never leave the
+  // user signed in. The vault unlock also expires on its own within 24h.
+  const logout = async () => {
+    const token = user?.token;
+    if (token) {
+      try {
+        await fetch(`${API_BASE}/auth/logout`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` },
+          signal: AbortSignal.timeout(3000),
+        });
+      } catch {
+        /* best effort */
+      }
+    }
     setUser(null);
     localStorage.removeItem(AUTH_STORAGE_KEY);
     toast.success('Signed out successfully');
