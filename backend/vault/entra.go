@@ -26,7 +26,7 @@ import (
 //
 //  1. StartMicrosoftUnlock (authenticated portal session) stores a one-time
 //     row: hash(state) → this user + this login session + a nonce.
-//  2. The browser goes to Microsoft with prompt=login&max_age=0, so the user
+//  2. The browser goes to Microsoft with prompt=login, so the user
 //     must actually sign in again (no silent SSO), MFA included.
 //  3. Microsoft redirects back without our JWT. The controller exchanges the
 //     code for an ID token server-to-server, then CompleteMicrosoftUnlock
@@ -295,7 +295,10 @@ func (s *Service) checkIDToken(raw string, row models.VaultStepUp, user models.U
 	if c.Aud != s.entra.ClientID {
 		return bad("invalid", fmt.Sprintf("the sign-in token was issued for a different app (aud %q, want %q)", c.Aud, s.entra.ClientID))
 	}
-	if c.Exp == 0 || time.Unix(c.Exp, 0).Before(now) {
+	// Same skew allowance as auth_time: Entra can set exp to the sign-in second
+	// itself (it did with max_age=0), and the token reaches us seconds later
+	// straight from the token endpoint. Freshness is enforced by auth_time.
+	if c.Exp == 0 || time.Unix(c.Exp, 0).Add(authTimeSkew).Before(now) {
 		return bad("invalid", fmt.Sprintf("the sign-in token has expired (exp %d, now %d)", c.Exp, now.Unix()))
 	}
 	if c.Nonce == "" || subtle.ConstantTimeCompare([]byte(c.Nonce), []byte(row.Nonce)) != 1 {

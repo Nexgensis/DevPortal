@@ -107,7 +107,7 @@ func TestMicrosoftUnlockRejects(t *testing.T) {
 		"other issuer":  {func(c map[string]any) { c["iss"] = "https://evil.example/v2.0" }, "wrong_account"},
 		"other app":     {func(c map[string]any) { c["aud"] = "someone-else" }, "invalid"},
 		"wrong nonce":   {func(c map[string]any) { c["nonce"] = "replayed" }, "invalid"},
-		"expired token": {func(c map[string]any) { c["exp"] = e.clock.Now().Add(-time.Minute).Unix() }, "invalid"}, // test clock, not the wall clock
+		"expired token": {func(c map[string]any) { c["exp"] = e.clock.Now().Add(-5 * time.Minute).Unix() }, "invalid"}, // test clock, not the wall clock
 		"no mfa":        {func(c map[string]any) { c["amr"] = []string{"pwd"} }, "no_mfa"},
 		"stale sign-in": {func(c map[string]any) { c["auth_time"] = c["auth_time"].(int64) - 3600 }, "not_fresh"},
 		"other person":  {func(c map[string]any) { c["preferred_username"] = "mallory@example.test" }, "wrong_account"},
@@ -222,5 +222,25 @@ func TestValidAuthContext(t *testing.T) {
 	}
 	if (EntraConfig{}).ClaimsRequest() != "" {
 		t.Error("no context → no claims parameter")
+	}
+}
+
+// Production regression (v1.5.11): Entra issued an ID token whose exp was the
+// sign-in second itself, and the exchange landed a fraction of a second later.
+// That must still unlock; freshness comes from auth_time.
+func TestMicrosoftUnlockTokenExpiringAtSignIn(t *testing.T) {
+	e := entraEnv(t, true)
+	bob := ssoActor(e, t, "bob", "admin")
+	su, err := e.svc.StartMicrosoftUnlock(bob)
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.clock.Advance(30 * time.Second)
+	c := goodClaims(e, "bob", su.Nonce)
+	c["auth_time"] = e.clock.Now().Unix()
+	c["exp"] = e.clock.Now().Unix()
+	e.clock.Advance(800 * time.Millisecond)
+	if _, err := e.svc.CompleteMicrosoftUnlock(su.State, idToken(t, c), "203.0.113.9", "ua"); err != nil {
+		t.Fatalf("a token expiring at the sign-in second should still unlock: %v", err)
 	}
 }

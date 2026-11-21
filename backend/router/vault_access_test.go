@@ -39,7 +39,7 @@ func (e *httpEnv) unlockWithMicrosoft(u models.User, tok string, mutate func(map
 	}
 	authURL, _ := url.Parse(body["url"].(string))
 	q := authURL.Query()
-	if q.Get("prompt") != "login" || q.Get("max_age") != "0" || !strings.Contains(authURL.Path, rtTenant) ||
+	if q.Get("prompt") != "login" || q.Get("max_age") != "" || !strings.Contains(authURL.Path, rtTenant) ||
 		q.Get("claims") != `{"id_token":{"acrs":{"essential":true,"value":"c1"}}}` {
 		e.t.Fatalf("step-up must force a fresh sign-in in our tenant: %s", authURL)
 	}

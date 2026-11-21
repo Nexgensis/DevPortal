@@ -59,8 +59,10 @@ func VaultRevokeGrant(svc *vault.Service) gin.HandlerFunc {
 // ---- unlock with Microsoft ---------------------------------------------------------
 
 // VaultStartMicrosoftUnlock returns the Microsoft sign-in URL for a step-up.
-// prompt=login + max_age=0 force a real, fresh sign-in (MFA included) instead
-// of silently reusing the browser's Microsoft session.
+// prompt=login forces a real, fresh sign-in (MFA included) instead of silently
+// reusing the browser's Microsoft session; auth_time is checked server-side.
+// No max_age: with max_age=0 Entra issued ID tokens that expired the second
+// they were issued, so every unlock was rejected as expired.
 func VaultStartMicrosoftUnlock(svc *vault.Service) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		st, err := svc.StartMicrosoftUnlock(middleware.VaultActor(c))
@@ -77,7 +79,6 @@ func VaultStartMicrosoftUnlock(svc *vault.Service) gin.HandlerFunc {
 		params.Set("state", st.State)
 		params.Set("nonce", st.Nonce)
 		params.Set("prompt", "login")
-		params.Set("max_age", "0")
 		params.Set("login_hint", st.LoginHint)
 		// Ask for the Conditional Access authentication context (fresh
 		// Authenticator approval every time), if configured.
